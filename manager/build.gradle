@@ -1,0 +1,183 @@
+import com.android.build.gradle.internal.tasks.CompileArtProfileTask
+
+import java.nio.file.Paths
+
+plugins {
+    id('com.android.application')
+    id('org.jetbrains.kotlin.android')
+    id('org.jetbrains.kotlin.plugin.compose')
+    id('com.google.devtools.ksp')
+    id('dev.rikka.tools.refine')
+    id('dev.rikka.tools.autoresconfig')
+}
+
+android {
+    namespace 'roro.stellar.manager'
+    defaultConfig {
+        applicationId "roro.stellar.manager"
+        versionCode rootProject.ext.versionCode
+        versionName rootProject.ext.versionName
+
+        ndk {
+            abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64'
+        }
+
+        // 注释掉CMake构建配置
+        // externalNativeBuild {
+        //     cmake {
+        //         arguments '-DANDROID_STL=none'
+        //         abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64'
+        //     }
+        // }
+    }
+
+    buildFeatures {
+        buildConfig true
+        prefab true
+        compose true
+    }
+
+    signingConfigs {
+        sign
+    }
+
+    buildTypes {
+        debug {
+        }
+        release {
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles 'proguard-rules.pro'
+        }
+    }
+
+    // 注释掉外部Native构建配置
+    // externalNativeBuild {
+    //     cmake {
+    //         path 'src/main/jni/CMakeLists.txt'
+    //         version = "3.22.1+"
+    //     }
+    // }
+
+    packagingOptions {
+        resources {
+            excludes += ['/META-INF/**']
+        }
+        jniLibs {
+            useLegacyPackaging = true
+            // 指定预编译SO库的存放位置
+            pickFirsts += ['**/*.so']
+        }
+    }
+
+    // 配置预编译库的源集
+    sourceSets {
+        main {
+            // 指定预编译SO库的目录
+            jniLibs.srcDirs = ['libs']
+        }
+    }
+
+    kotlin {
+        jvmToolchain(21)
+    }
+}
+
+autoResConfig {
+    generatedClassFullName = "roro.stellar.manager.StellarLocales"
+    generateRes = false
+    generatedArrayFirstItem = "SYSTEM"
+    generateLocaleConfig = true
+}
+
+def collapseReleaseResourceNames = task('collapseReleaseResourceNames').doLast {
+    def aapt2 = Paths.get(project.android.sdkDirectory.path, 'build-tools', project.android.buildToolsVersion, 'aapt2')
+    def zip = Paths.get(project.buildDir.path, 'intermediates',
+            'optimized_processed_res', 'release', 'optimizeReleaseResources', 'resources-release-optimize.ap_')
+    def optimized = new File("${zip}.opt")
+    def cmd = exec {
+        commandLine aapt2, 'optimize', '--collapse-resource-names',
+                '--resources-config-path', 'aapt2-resources.cfg',
+                '-o', optimized, zip
+        ignoreExitValue false
+    }
+    if (cmd.exitValue == 0) {
+        delete(zip)
+        optimized.renameTo("$zip")
+    }
+}
+
+afterEvaluate {
+    tasks.findByName('optimizeReleaseResources')?.finalizedBy(collapseReleaseResourceNames)
+}
+
+android.applicationVariants.configureEach { variant ->
+    variant.outputs.configureEach {
+        outputFileName = "stellar-v${variant.versionName}-${variant.name}.apk"
+
+        variant.assembleProvider.get().doLast {
+            def outDir = new File(rootDir, "out")
+            def mappingDir = new File(outDir, "mapping").absolutePath
+            def apkDir = new File(outDir, "apk").absolutePath
+
+            if (variant.getBuildType().isMinifyEnabled()) {
+                copy {
+                    from variant.mappingFileProvider.get()
+                    into mappingDir
+                    rename { String fileName -> "mapping-${variant.versionName}.txt" }
+                }
+                copy {
+                    from outputFile
+                    into apkDir
+                }
+            }
+        }
+    }
+}
+
+tasks.withType(CompileArtProfileTask.class).configureEach {
+    enabled = false
+}
+
+configurations.configureEach {
+    exclude group: 'androidx.profileinstaller', module: 'profileinstaller'
+}
+
+dependencies {
+    implementation managerLibs.bundles.kotlinxCoroutines
+
+    implementation project(':server')
+    implementation project(':api')
+    implementation project(':provider')
+
+    implementation libs.hidden.compat
+    compileOnly libs.hidden.stub
+
+    implementation managerLibs.bundles.core
+    implementation managerLibs.bundles.lifecycle
+
+    implementation managerLibs.material
+
+    def composeBom = platform(managerLibs.composeBom)
+    implementation composeBom
+    implementation managerLibs.bundles.composeUi
+    debugImplementation managerLibs.composeUiTooling
+
+    implementation managerLibs.libsuCore
+
+    implementation managerLibs.bundles.nativeCrypto
+
+    implementation managerLibs.appiconloader
+
+    implementation managerLibs.okhttp
+
+    implementation managerLibs.capsule
+
+    implementation managerLibs.composeMarkdown
+
+    implementation managerLibs.roomRuntime
+    implementation managerLibs.roomKtx
+    ksp managerLibs.roomCompiler
+    implementation managerLibs.gson
+    implementation managerLibs.workRuntimeKtx
+}
