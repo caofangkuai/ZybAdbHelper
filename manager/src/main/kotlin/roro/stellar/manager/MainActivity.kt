@@ -118,7 +118,7 @@ class MainActivity : ComponentActivity() {
                 dialog.dismiss()
             }
             .setNeutralButton("开源地址") { _, _ ->
-                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://gitee.com/caofangkuai/zyb-adb-helper/"))
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/caofangkuai/ZybAdbHelper/"))
                 startActivity(intent)
             }
             .setCancelable(false)

@@ -67,6 +67,7 @@ import roro.stellar.manager.ui.theme.AppSpacing
 import roro.stellar.manager.util.EnvironmentUtils
 import java.net.ConnectException
 import javax.net.ssl.SSLException
+import com.cfks.startanywhere.StartAnyWhere
 
 private class NotRootedException : Exception("没有 Root 权限")
 
@@ -292,12 +293,21 @@ private fun StepActionContent(
                 Button(
                     onClick = {
                         try {
-                            context.startActivity(
-                                Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS).apply {
-                                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                                    putExtra(":settings:fragment_args_key", "toggle_adb_wireless")
-                                }
-                            )
+                            // context.startActivity(
+                                // Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS).apply {
+                                    // flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                    // putExtra(":settings:fragment_args_key", "toggle_adb_wireless")
+                                // }
+                            // )
+                            val intent = Intent().apply {
+                				component = android.content.ComponentName(
+                    				"com.android.settings",
+                    				"com.android.settings.SettingsActivity"
+                				)
+                				putExtra(":settings:show_fragment", "com.android.settings.development.WirelessDebuggingFragment")
+                				flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            				}
+            				StartAnyWhere.pullSpecialActivity(context, intent)
                         } catch (_: ActivityNotFoundException) {
                             Toast.makeText(context, context.getString(R.string.cannot_open_dev_options), Toast.LENGTH_SHORT).show()
                         }
@@ -386,12 +396,21 @@ private fun StepActionContent(
                 Button(
                     onClick = {
                         try {
-                            context.startActivity(
-                                Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS).apply {
-                                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                                    putExtra(":settings:fragment_args_key", "toggle_adb_wireless")
-                                }
-                            )
+                            // context.startActivity(
+                                // Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS).apply {
+                                    // flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                                    // putExtra(":settings:fragment_args_key", "toggle_adb_wireless")
+                                // }
+                            // )
+                            val intent = Intent().apply {
+                				component = android.content.ComponentName(
+                    				"com.android.settings",
+                    				"com.android.settings.SettingsActivity"
+                				)
+                				putExtra(":settings:show_fragment", "com.android.settings.development.WirelessDebuggingFragment")
+                				flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            				}
+            				StartAnyWhere.pullSpecialActivity(context, intent)
                         } catch (_: ActivityNotFoundException) {
                             Toast.makeText(context, context.getString(R.string.cannot_open_dev_options), Toast.LENGTH_SHORT).show()
                         }

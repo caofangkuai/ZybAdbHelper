@@ -202,8 +202,8 @@
     <string name="wireless_debugging_start">无线调试启动</string>
     <string name="error_report">错误报告</string>
     <string name="enable_wireless_debugging">开启无线调试</string>
-    <string name="cannot_open_dev_options">无法打开开发者选项</string>
-    <string name="open_dev_options">打开开发者选项</string>
+    <string name="cannot_open_dev_options">无法打开ADB无线调试页面</string>
+    <string name="open_dev_options">打开ADB无线调试页面(StartAnyWhere)</string>
     <string name="already_enabled_continue">已开启，继续</string>
     <string name="grant_notification_permission">授权通知权限</string>
     <string name="need_notification_permission">需要通知权限才能继续配对</string>

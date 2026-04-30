@@ -112,13 +112,14 @@ fun HomeScreen(
                     }
                 }
 
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R || EnvironmentUtils.getAdbTcpPort() > 0) {
+				//测试
+                //if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R || EnvironmentUtils.getAdbTcpPort() > 0) {
                     item {
                         StartWirelessAdbCard(
                             onStartClick = { onNavigateToStarter(false, "127.0.0.1", 0, false) }
                         )
                     }
-                }
+                //}
 
                 item {
                     StartWiredAdbCard(
