@@ -350,21 +350,28 @@
     
 	<!-- OCR 识别相关字符串 -->
 	<string name="ocr_processing_title">🔍 正在识别配对码</string>
-	<string name="ocr_processing_text">正在分析无线调试配对码截图...</string>
+	<string name="ocr_processing_analyzing">正在分析截图...</string>
+	<string name="ocr_processing_wait">已有截图在处理中，请稍候...</string>
 	<string name="ocr_success_title">✅ 已识别配对码</string>
 	<string name="ocr_success_text">正在使用配对码 %s 进行配对</string>
 	<string name="ocr_error_title">❌ 识别失败</string>
 	<string name="ocr_error_loading">无法加载截图文件</string>
-	<string name="ocr_error_out_of_memory">内存不足，无法加载截图</string>
-	<string name="ocr_error_crop">截图裁剪失败</string>
+	<string name="ocr_error_loading_detail">加载截图失败: %s</string>
+	<string name="ocr_error_file_not_found">截图文件不存在</string>
+	<string name="ocr_error_out_of_memory">内存不足: %s</string>
+	<string name="ocr_error_crop_region">获取裁剪区域失败: %s</string>
+	<string name="ocr_error_crop">截图裁剪失败: %s</string>
+	<string name="ocr_error_crop_empty">裁剪结果为空</string>
+	<string name="ocr_error_ocr_failed">OCR识别异常: %s</string>
+	<string name="ocr_error_no_text">未识别到任何文字</string>
 	<string name="ocr_error_no_code">未识别到有效配对码</string>
-	<string name="ocr_error_ocr_failed">OCR识别引擎异常</string>
-	<string name="ocr_error_exception">OCR处理异常</string>
+	<string name="ocr_error_no_code_detail">未找到6位配对码，识别内容: %s</string>
+	<string name="ocr_error_exception_detail">处理异常: %s</string>
 	<string name="ocr_error_invalid_port">无效的服务端口: %s</string>
 	
-	<!-- 截图监听 -->
-	<string name="missing_storage_permission">缺少存储权限，无法自动检测截图</string>
-	<string name="auto_detect_unavailable">自动检测不可用</string>
-	<string name="please_enter_code_manually">请手动输入配对码</string>
+	<!-- 截图监听相关 -->
+	<string name="screenshot_listener_started">📸 截图监听已启动</string>
+	<string name="screenshot_listener_started_text">正在等待无线调试配对码截图...</string>
 	<string name="screenshot_listener_error">截图监听错误: %s</string>
+	
 </resources>

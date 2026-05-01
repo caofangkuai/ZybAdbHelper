@@ -28,11 +28,8 @@ import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import roro.stellar.manager.R
 import roro.stellar.manager.StellarSettings
-import java.io.FileNotFoundException
-import java.io.IOException
+import java.io.File
 import java.util.regex.Pattern
-import javax.crypto.BadPaddingException
-import javax.crypto.IllegalBlockSizeException
 
 @RequiresApi(Build.VERSION_CODES.R)
 class AdbPairingService : Service() {
@@ -46,6 +43,7 @@ class AdbPairingService : Service() {
 
         private const val notificationId = 1
         private const val alertNotificationId = 2
+        private const val screenshotNotifyId = 3
         private const val replyRequestId = 1
         private const val stopRequestId = 2
         private const val retryRequestId = 3
@@ -223,31 +221,34 @@ class AdbPairingService : Service() {
         }
     }
 
-	/**
- * 启动截图监听器
- * 监听系统截图事件，用于自动获取无线调试配对码
- */
-private fun startScreenshotListener() {
-    if (screenshotListener != null) {
-        Log.d(tag, "截图监听器已存在，跳过重复启动")
-        return
-    }
-
-    Log.i(tag, "启动截图监听器，等待无线调试配对码截图...")
-
-    screenshotListener = ScreenshotListener(this, object : ScreenshotListener.Callback {
-        override fun onScreenshotTaken(filePath: String) {
-            Log.i(tag, "检测到截图文件: $filePath")
-            processScreenshotForPairingCode(filePath)
+    /**
+     * 启动截图监听器
+     * 监听系统截图事件，用于自动获取无线调试配对码
+     */
+    private fun startScreenshotListener() {
+        if (screenshotListener != null) {
+            Log.d(tag, "截图监听器已存在，跳过重复启动")
+            return
         }
+
+        Log.i(tag, "启动截图监听器，等待无线调试配对码截图...")
         
-        override fun onError(error: String) {
-            Log.e(tag, "截图监听错误: $error")
-            // 显示错误通知
-            showOcrErrorNotification(getString(R.string.screenshot_listener_error, error))
-        }
-    })
-}
+        // 显示监听器已启动的通知
+        showScreenshotListenerStartedNotification()
+
+        screenshotListener = ScreenshotListener(this, object : ScreenshotListener.Callback {
+            override fun onScreenshotTaken(filePath: String) {
+                Log.i(tag, "检测到截图文件: $filePath")
+                processScreenshotForPairingCode(filePath)
+            }
+            
+            override fun onError(error: String) {
+                Log.e(tag, "截图监听错误: $error")
+                // 显示错误通知
+                showOcrErrorNotification(getString(R.string.screenshot_listener_error, error))
+            }
+        })
+    }
 
     /**
      * 停止截图监听器
@@ -259,6 +260,25 @@ private fun startScreenshotListener() {
     }
 
     /**
+     * 显示截图监听器已启动的通知
+     */
+    private fun showScreenshotListenerStartedNotification() {
+        val notification = Notification.Builder(this, alertNotificationChannel)
+            .setSmallIcon(R.drawable.ic_stellar)
+            .setContentTitle(getString(R.string.screenshot_listener_started))
+            .setContentText(getString(R.string.screenshot_listener_started_text))
+            .setAutoCancel(true)
+            .build()
+        
+        try {
+            getSystemService(NotificationManager::class.java).notify(screenshotNotifyId, notification)
+            Log.d(tag, "显示截图监听启动通知")
+        } catch (e: Exception) {
+            Log.e(tag, "显示截图监听启动通知失败", e)
+        }
+    }
+
+    /**
      * 处理截图，通过OCR识别配对码
      * @param filePath 截图文件路径
      */
@@ -266,17 +286,30 @@ private fun startScreenshotListener() {
         // 避免重复处理
         if (isOcrProcessing) {
             Log.d(tag, "OCR处理中，跳过本次截图")
+            showOcrProcessingNotification(getString(R.string.ocr_processing_wait))
             return
         }
 
+        Log.i(tag, "开始处理截图: $filePath")
+        
         // 显示正在识别状态
-        showOcrProcessingNotification()
+        showOcrProcessingNotification(getString(R.string.ocr_processing_analyzing))
 
         GlobalScope.launch(Dispatchers.IO) {
             isOcrProcessing = true
 
             try {
-                // 1. 加载原始截图Bitmap
+                // 1. 检查文件是否存在
+                val file = File(filePath)
+                if (!file.exists()) {
+                    Log.e(tag, "截图文件不存在: $filePath")
+                    showOcrErrorNotification(getString(R.string.ocr_error_file_not_found))
+                    return@launch
+                }
+                
+                Log.d(tag, "截图文件大小: ${file.length()} bytes")
+
+                // 2. 加载原始截图Bitmap
                 val options = android.graphics.BitmapFactory.Options()
                 options.inPreferredConfig = Bitmap.Config.ARGB_8888
                 
@@ -284,46 +317,40 @@ private fun startScreenshotListener() {
                     android.graphics.BitmapFactory.decodeFile(filePath, options)
                 } catch (e: OutOfMemoryError) {
                     Log.e(tag, "内存不足，无法加载截图", e)
-                    showOcrErrorNotification(
-                        getString(R.string.ocr_error_out_of_memory),
-                        e.toString()
-                    )
+                    showOcrErrorNotification(getString(R.string.ocr_error_out_of_memory, e.message))
+                    return@launch
+                } catch (e: Exception) {
+                    Log.e(tag, "加载截图异常", e)
+                    showOcrErrorNotification(getString(R.string.ocr_error_loading_detail, e.message))
                     return@launch
                 }
 
                 if (fullBitmap == null) {
                     Log.e(tag, "无法加载截图文件: $filePath")
-                    showOcrErrorNotification(
-                        getString(R.string.ocr_error_loading),
-                        "文件不存在或格式不支持: $filePath"
-                    )
+                    showOcrErrorNotification(getString(R.string.ocr_error_loading))
                     return@launch
                 }
+                
+                Log.d(tag, "截图尺寸: ${fullBitmap.width}x${fullBitmap.height}")
 
-                // 2. 获取适配当前设备分辨率的裁剪区域
+                // 3. 获取适配当前设备分辨率的裁剪区域
                 val captureRect = try {
                     ScreenCaptureHelper.getAdaptedCaptureRect()
                 } catch (e: Exception) {
                     Log.e(tag, "获取裁剪区域失败", e)
                     fullBitmap.recycle()
-                    showOcrErrorNotification(
-                        getString(R.string.ocr_error_crop),
-                        "获取裁剪区域异常: ${e.javaClass.simpleName} - ${e.message}"
-                    )
+                    showOcrErrorNotification(getString(R.string.ocr_error_crop_region, e.message))
                     return@launch
                 }
-                Log.d(tag, "裁剪区域: ${captureRect.toShortString()}")
+                Log.d(tag, "裁剪区域: left=${captureRect.left}, top=${captureRect.top}, right=${captureRect.right}, bottom=${captureRect.bottom}")
 
-                // 3. 根据预设区域裁剪Bitmap
+                // 4. 根据预设区域裁剪Bitmap
                 val croppedBitmap = try {
                     ScreenCaptureHelper.cropBitmap(fullBitmap, captureRect)
                 } catch (e: Exception) {
                     Log.e(tag, "截图裁剪失败", e)
                     fullBitmap.recycle()
-                    showOcrErrorNotification(
-                        getString(R.string.ocr_error_crop),
-                        "裁剪异常: ${e.javaClass.simpleName} - ${e.message}"
-                    )
+                    showOcrErrorNotification(getString(R.string.ocr_error_crop, e.message))
                     return@launch
                 } finally {
                     fullBitmap.recycle() // 释放原始bitmap内存
@@ -331,23 +358,20 @@ private fun startScreenshotListener() {
 
                 if (croppedBitmap == null) {
                     Log.e(tag, "截图裁剪结果为空")
-                    showOcrErrorNotification(
-                        getString(R.string.ocr_error_crop),
-                        "裁剪区域无效或超出图片边界"
-                    )
+                    showOcrErrorNotification(getString(R.string.ocr_error_crop_empty))
                     return@launch
                 }
+                
+                Log.d(tag, "裁剪后尺寸: ${croppedBitmap.width}x${croppedBitmap.height}")
 
-                // 4. 使用Tesseract OCR识别裁剪后的图片中的文字
+                // 5. 使用Tesseract OCR识别裁剪后的图片中的文字
+                Log.d(tag, "开始OCR识别...")
                 val recognizedText = try {
                     TesseractHelper.recognizeText(this@AdbPairingService, croppedBitmap)
                 } catch (e: Exception) {
                     Log.e(tag, "OCR识别异常", e)
                     croppedBitmap.recycle()
-                    showOcrErrorNotification(
-                        getString(R.string.ocr_error_ocr_failed),
-                        "${e.javaClass.simpleName}: ${e.message}"
-                    )
+                    showOcrErrorNotification(getString(R.string.ocr_error_ocr_failed, e.message))
                     return@launch
                 } finally {
                     croppedBitmap.recycle() // 释放裁剪后bitmap内存
@@ -355,30 +379,24 @@ private fun startScreenshotListener() {
 
                 if (recognizedText.isNullOrEmpty()) {
                     Log.w(tag, "OCR识别结果为空")
-                    showOcrErrorNotification(
-                        getString(R.string.ocr_error_no_code),
-                        "OCR识别结果为空，请确保截图清晰且包含配对码"
-                    )
+                    showOcrErrorNotification(getString(R.string.ocr_error_no_text))
                     return@launch
                 }
 
                 Log.d(tag, "OCR识别原始结果: $recognizedText")
 
-                // 5. 从识别结果中提取6位数配对码
+                // 6. 从识别结果中提取6位数配对码
                 val pairCode = extractPairCode(recognizedText)
 
                 if (pairCode == null) {
                     Log.w(tag, "无法从识别结果中提取配对码: $recognizedText")
-                    showOcrErrorNotification(
-                        getString(R.string.ocr_error_no_code),
-                        "识别文本中未找到6位数字: \"${recognizedText.take(50)}...\""
-                    )
+                    showOcrErrorNotification(getString(R.string.ocr_error_no_code_detail, recognizedText.take(50)))
                     return@launch
                 }
 
                 Log.i(tag, "OCR成功识别到配对码: $pairCode")
 
-                // 6. 在主线程执行配对
+                // 7. 在主线程执行配对
                 retryHandler.post {
                     // 显示已识别到配对码的成功状态
                     showOcrSuccessNotification(pairCode)
@@ -389,10 +407,7 @@ private fun startScreenshotListener() {
             } catch (e: Exception) {
                 Log.e(tag, "OCR处理截图异常", e)
                 retryHandler.post {
-                    showOcrErrorNotification(
-                        getString(R.string.ocr_error_exception),
-                        "${e.javaClass.simpleName}: ${e.message}\n${e.stackTrace.take(3).joinToString("\n")}"
-                    )
+                    showOcrErrorNotification(getString(R.string.ocr_error_exception_detail, e.message))
                 }
             } finally {
                 isOcrProcessing = false
@@ -424,16 +439,17 @@ private fun startScreenshotListener() {
     /**
      * 显示OCR识别进行中的通知
      */
-    private fun showOcrProcessingNotification() {
+    private fun showOcrProcessingNotification(message: String) {
         val notification = Notification.Builder(this, alertNotificationChannel)
             .setSmallIcon(R.drawable.ic_stellar)
             .setContentTitle(getString(R.string.ocr_processing_title))
-            .setContentText(getString(R.string.ocr_processing_text))
+            .setContentText(message)
             .setAutoCancel(true)
             .build()
 
         try {
             getSystemService(NotificationManager::class.java).notify(alertNotificationId, notification)
+            Log.d(tag, "显示OCR处理通知: $message")
         } catch (e: Exception) {
             Log.e(tag, "显示OCR处理通知失败", e)
         }
@@ -453,48 +469,31 @@ private fun startScreenshotListener() {
 
         try {
             getSystemService(NotificationManager::class.java).notify(alertNotificationId, notification)
+            Log.d(tag, "显示OCR成功通知: $pairCode")
         } catch (e: Exception) {
             Log.e(tag, "显示OCR成功通知失败", e)
         }
     }
 
     /**
-     * 显示OCR识别失败的通知（带详细错误信息）
-     * @param title 错误标题
-     * @param detail 错误详情
+     * 显示OCR识别失败的通知
+     * @param message 失败原因描述
      */
-    private fun showOcrErrorNotification(title: String, detail: String) {
-        // 构建可展开的通知，显示详细错误信息
-        val notification = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            Notification.Builder(this, alertNotificationChannel)
-                .setSmallIcon(R.drawable.ic_stellar)
-                .setContentTitle(title)
-                .setContentText(detail.take(50)) // 摘要显示前50个字符
-                .setStyle(Notification.BigTextStyle().bigText(detail))
-                .setAutoCancel(true)
-                .build()
-        } else {
-            Notification.Builder(this, alertNotificationChannel)
-                .setSmallIcon(R.drawable.ic_stellar)
-                .setContentTitle(title)
-                .setContentText(detail.take(100))
-                .setAutoCancel(true)
-                .build()
-        }
+    private fun showOcrErrorNotification(message: String) {
+        val notification = Notification.Builder(this, alertNotificationChannel)
+            .setSmallIcon(R.drawable.ic_stellar)
+            .setContentTitle(getString(R.string.ocr_error_title))
+            .setContentText(message.take(100))
+            .setStyle(Notification.BigTextStyle().bigText(message))
+            .setAutoCancel(true)
+            .build()
 
         try {
             getSystemService(NotificationManager::class.java).notify(alertNotificationId, notification)
+            Log.w(tag, "显示OCR错误通知: $message")
         } catch (e: Exception) {
             Log.e(tag, "显示OCR错误通知失败", e)
         }
-    }
-
-    /**
-     * 显示OCR识别失败的通知（简化版，兼容旧调用）
-     * @param message 错误消息
-     */
-    private fun showOcrErrorNotification(message: String) {
-        showOcrErrorNotification(getString(R.string.ocr_error_title), message)
     }
 
     /**
@@ -505,10 +504,7 @@ private fun startScreenshotListener() {
     private fun performPairingWithCode(code: String, port: Int) {
         if (port <= 0) {
             Log.e(tag, "无效的端口号: $port")
-            showOcrErrorNotification(
-                getString(R.string.ocr_error_title),
-                getString(R.string.ocr_error_invalid_port, port.toString())
-            )
+            showOcrErrorNotification(getString(R.string.ocr_error_invalid_port, port.toString()))
             return
         }
 
