@@ -26,12 +26,12 @@ dependencyResolutionManagement {
         mavenCentral()
         maven {
             url("https://jitpack.io")
-            content {
-                includeGroup("com.github.topjohnwu.libsu")
-                includeGroup("com.github.Kyant0")
-                includeGroup("com.github.jeziellago")
-                includeGroup("com.github.adaptech-cz")
-            }
+            // content {
+                // includeGroup("com.github.topjohnwu.libsu")
+                // includeGroup("com.github.Kyant0")
+                // includeGroup("com.github.jeziellago")
+                // includeGroup("com.github.adaptech-cz")
+            // }
         }
     }
 
