@@ -185,4 +185,6 @@ dependencies {
     ksp managerLibs.roomCompiler
     implementation managerLibs.gson
     implementation managerLibs.workRuntimeKtx
+    
+    implementation 'cz.adaptech.tesseract4android:tesseract4android:4.9.0'
 }

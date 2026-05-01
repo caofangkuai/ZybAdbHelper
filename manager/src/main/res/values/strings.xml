@@ -235,7 +235,7 @@
     <string name="enable_wireless_debugging_hint">请在开发者选项中开启无线调试功能</string>
     <string name="notification_permission_granted">通知权限已授予</string>
     <string name="notification_permission_required">必须授予通知权限才能进行配对</string>
-    <string name="pairing_instruction">在无线调试页面点击「使用配对码配对设备」，然后在通知中心输入配对码</string>
+    <string name="pairing_instruction">在无线调试页面点击「使用配对码配对设备」，然后按 关机+音量下键 对配对码截图，ZybAdbHelper 将自动识别</string>
     <string name="miui_pairing_warning_title">MIUI / HyperOS 用户</string>
     <string name="miui_pairing_warning_body">您可能需要在系统设置中从「通知管理」-「通知显示设置」将通知样式切换为「原生样式」。\n\n否则，您可能无法在通知中输入配对码。</string>
     <string name="connection_success">连接成功</string>
@@ -289,7 +289,7 @@
 
     <!-- ADB Pairing Service -->
     <string name="pairing_service_found">已找到配对服务</string>
-    <string name="enter_pairing_code">请输入配对码</string>
+    <string name="enter_pairing_code">请按 关机+音量下键 对配对码截图，ZybAdbHelper 将自动识别</string>
     <string name="wireless_debugging_pairing_channel">无线调试配对</string>
     <string name="pairing_alert_channel">配对提醒</string>
     <string name="searching_pairing_service">正在搜索配对服务</string>

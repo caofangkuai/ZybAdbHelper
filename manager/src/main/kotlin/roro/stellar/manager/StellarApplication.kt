@@ -15,6 +15,10 @@ import roro.stellar.manager.compat.BuildUtils.atLeast30
 import roro.stellar.manager.db.AppDatabase
 import roro.stellar.manager.startup.notification.BootStartNotifications
 import roro.stellar.manager.util.Logger.Companion.LOGGER
+import android.content.res.Configuration
+import android.util.DisplayMetrics
+import com.cfks.utils.ScreenCaptureHelper
+import com.cfks.utils.TesseractHelper
 
 lateinit var application: StellarApplication
 
@@ -42,13 +46,25 @@ class StellarApplication : Application() {
         AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO)
     }
 
-    override fun onCreate() {
-        super.onCreate()
-        application = this
-        init(this)
-        BootStartNotifications.createChannel(this)
-        Stellar.addServiceStartedListener(Stellar.OnServiceStartedListener { executeFollowCommands() })
-    }
+override fun onCreate() {
+    super.onCreate()
+    application = this
+    
+    init(this)
+    BootStartNotifications.createChannel(this)
+    Stellar.addServiceStartedListener(Stellar.OnServiceStartedListener { executeFollowCommands() })
+    
+    // 获取屏幕分辨率并设置到裁剪工具类
+    val dm = resources.displayMetrics
+    val screenWidth = dm.widthPixels
+    val screenHeight = dm.heightPixels
+    ScreenCaptureHelper.setScreenSize(screenWidth, screenHeight)
+    
+    // 初始化 Tesseract
+    Thread {
+        TesseractHelper.init(this)
+    }.start()
+}
 
     private fun executeFollowCommands() {
         val context = this
