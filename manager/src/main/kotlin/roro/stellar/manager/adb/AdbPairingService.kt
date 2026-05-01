@@ -9,6 +9,7 @@ import android.app.RemoteInput
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.graphics.Bitmap
 import android.os.Build
@@ -22,10 +23,12 @@ import androidx.lifecycle.Observer
 import com.cfks.utils.ScreenCaptureHelper
 import com.cfks.utils.ScreenshotListener
 import com.cfks.utils.TesseractHelper
-import kotlinx.coroutines.DelicateCoroutinesApi
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import roro.stellar.manager.R
 import roro.stellar.manager.StellarSettings
 import java.util.regex.Pattern
@@ -78,6 +81,9 @@ class AdbPairingService : Service() {
 
     // OCR处理中的标志，避免重复处理同一张截图
     private var isOcrProcessing = false
+
+    // 协程作用域，用于管理后台任务
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     /**
      * 观察者：监听配对服务端口
@@ -229,6 +235,17 @@ class AdbPairingService : Service() {
             return
         }
 
+        // Android 12 及以下检查存储权限
+        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.S_V2) {
+            if (checkSelfPermission(android.Manifest.permission.READ_EXTERNAL_STORAGE) 
+                != PackageManager.PERMISSION_GRANTED) {
+                Log.w(tag, "缺少存储权限，无法启动截图监听")
+                showOcrErrorNotification(getString(R.string.missing_storage_permission))
+                showManualInputGuide()
+                return
+            }
+        }
+
         Log.i(tag, "启动截图监听器，等待无线调试配对码截图...")
 
         screenshotListener = ScreenshotListener(this, object : ScreenshotListener.Callback {
@@ -236,7 +253,14 @@ class AdbPairingService : Service() {
                 Log.i(tag, "检测到截图文件: $filePath")
                 processScreenshotForPairingCode(filePath)
             }
+            
+            override fun onError(error: String) {
+                Log.e(tag, "截图监听错误: $error")
+                // 显示引导用户手动输入的通知
+                showManualInputGuide()
+            }
         })
+        screenshotListener?.start()
     }
 
     /**
@@ -249,11 +273,24 @@ class AdbPairingService : Service() {
     }
 
     /**
+     * 显示手动输入引导通知
+     */
+    private fun showManualInputGuide() {
+        val notification = Notification.Builder(this, alertNotificationChannel)
+            .setSmallIcon(R.drawable.ic_stellar)
+            .setContentTitle(getString(R.string.auto_detect_unavailable))
+            .setContentText(getString(R.string.please_enter_code_manually))
+            .addAction(replyNotificationAction(discoveredPort))
+            .setAutoCancel(true)
+            .build()
+        getSystemService(NotificationManager::class.java).notify(alertNotificationId, notification)
+    }
+
+    /**
      * 处理截图，通过OCR识别配对码
      * @param filePath 截图文件路径
      */
     private fun processScreenshotForPairingCode(filePath: String) {
-        // 避免重复处理
         if (isOcrProcessing) {
             Log.d(tag, "OCR处理中，跳过本次截图")
             return
@@ -262,76 +299,77 @@ class AdbPairingService : Service() {
         // 显示正在识别状态
         showOcrProcessingNotification()
 
-        GlobalScope.launch(Dispatchers.IO) {
+        serviceScope.launch {
             isOcrProcessing = true
 
             try {
-                // 1. 加载原始截图Bitmap
-                val options = android.graphics.BitmapFactory.Options()
-                options.inPreferredConfig = Bitmap.Config.ARGB_8888
-                val fullBitmap = android.graphics.BitmapFactory.decodeFile(filePath, options)
-
-                if (fullBitmap == null) {
-                    Log.e(tag, "无法加载截图文件: $filePath")
-                    showOcrErrorNotification(getString(R.string.ocr_error_loading))
-                    return@launch
+                val pairCode = withContext(Dispatchers.Default) {
+                    performOcrAndExtractCode(filePath)
                 }
-
-                // 2. 获取适配当前设备分辨率的裁剪区域
-                val captureRect = ScreenCaptureHelper.getAdaptedCaptureRect()
-                Log.d(tag, "裁剪区域: ${captureRect.toShortString()}")
-
-                // 3. 根据预设区域裁剪Bitmap
-                val croppedBitmap = ScreenCaptureHelper.cropBitmap(fullBitmap, captureRect)
-                fullBitmap.recycle() // 释放原始bitmap内存
-
-                if (croppedBitmap == null) {
-                    Log.e(tag, "截图裁剪失败")
-                    showOcrErrorNotification(getString(R.string.ocr_error_crop))
-                    return@launch
+                
+                if (pairCode != null) {
+                    withContext(Dispatchers.Main) {
+                        onCodeExtracted(pairCode)
+                    }
+                } else {
+                    withContext(Dispatchers.Main) {
+                        showOcrErrorNotification(getString(R.string.ocr_error_no_code))
+                    }
                 }
-
-                // 4. 使用Tesseract OCR识别裁剪后的图片中的文字
-                // 注意：TesseractHelper已在Application中初始化
-                val recognizedText = TesseractHelper.recognizeText(this@AdbPairingService, croppedBitmap)
-                croppedBitmap.recycle() // 释放裁剪后bitmap内存
-
-                if (recognizedText.isNullOrEmpty()) {
-                    Log.w(tag, "OCR识别结果为空")
-                    showOcrErrorNotification(getString(R.string.ocr_error_no_code))
-                    return@launch
-                }
-
-                Log.d(tag, "OCR识别原始结果: $recognizedText")
-
-                // 5. 从识别结果中提取6位数配对码
-                val pairCode = extractPairCode(recognizedText)
-
-                if (pairCode == null) {
-                    Log.w(tag, "无法从识别结果中提取配对码: $recognizedText")
-                    showOcrErrorNotification(getString(R.string.ocr_error_no_code))
-                    return@launch
-                }
-
-                Log.i(tag, "OCR成功识别到配对码: $pairCode")
-
-                // 6. 在主线程执行配对
-                retryHandler.post {
-                    // 显示已识别到配对码的成功状态
-                    showOcrSuccessNotification(pairCode)
-                    // 执行无线调试配对
-                    performPairingWithCode(pairCode, discoveredPort)
-                }
-
             } catch (e: Exception) {
                 Log.e(tag, "OCR处理截图异常", e)
-                retryHandler.post {
+                withContext(Dispatchers.Main) {
                     showOcrErrorNotification(getString(R.string.ocr_error_exception, e.message ?: "未知错误"))
                 }
             } finally {
                 isOcrProcessing = false
             }
         }
+    }
+
+    /**
+     * 执行OCR识别并提取配对码
+     * @param filePath 截图文件路径
+     * @return 6位配对码，未找到则返回null
+     */
+    private fun performOcrAndExtractCode(filePath: String): String? {
+        // 1. 加载原始截图Bitmap
+        val options = android.graphics.BitmapFactory.Options().apply {
+            inPreferredConfig = Bitmap.Config.ARGB_8888
+        }
+        val fullBitmap = android.graphics.BitmapFactory.decodeFile(filePath, options)
+
+        if (fullBitmap == null) {
+            Log.e(tag, "无法加载截图文件: $filePath")
+            return null
+        }
+
+        // 2. 获取适配当前设备分辨率的裁剪区域
+        val captureRect = ScreenCaptureHelper.getAdaptedCaptureRect()
+        Log.d(tag, "裁剪区域: ${captureRect.toShortString()}")
+
+        // 3. 根据预设区域裁剪Bitmap
+        val croppedBitmap = ScreenCaptureHelper.cropBitmap(fullBitmap, captureRect)
+        fullBitmap.recycle() // 释放原始bitmap内存
+
+        if (croppedBitmap == null) {
+            Log.e(tag, "截图裁剪失败")
+            return null
+        }
+
+        // 4. 使用Tesseract OCR识别裁剪后的图片中的文字
+        val recognizedText = TesseractHelper.recognizeText(this@AdbPairingService, croppedBitmap)
+        croppedBitmap.recycle() // 释放裁剪后bitmap内存
+
+        if (recognizedText.isNullOrEmpty()) {
+            Log.w(tag, "OCR识别结果为空")
+            return null
+        }
+
+        Log.d(tag, "OCR识别原始结果: $recognizedText")
+
+        // 5. 从识别结果中提取6位数配对码
+        return extractPairCode(recognizedText)
     }
 
     /**
@@ -353,6 +391,47 @@ class AdbPairingService : Service() {
             return matcher2.group(1)
         }
         return null
+    }
+
+    /**
+     * OCR识别成功后的处理
+     * @param pairCode 识别到的配对码
+     */
+    private fun onCodeExtracted(pairCode: String) {
+        Log.i(tag, "OCR成功识别到配对码: $pairCode")
+        showOcrSuccessNotification(pairCode)
+        
+        if (discoveredPort > 0) {
+            performPairingWithCode(pairCode, discoveredPort)
+        } else {
+            Log.w(tag, "未发现配对服务端口，等待1秒后重试")
+            // 等待端口发现后再重试
+            retryHandler.postDelayed({
+                if (discoveredPort > 0) {
+                    performPairingWithCode(pairCode, discoveredPort)
+                } else {
+                    Log.e(tag, "仍未发现配对服务端口")
+                    showOcrErrorNotification(getString(R.string.pairing_service_not_found))
+                }
+            }, 1000)
+        }
+    }
+
+    /**
+     * 使用识别到的配对码执行无线调试配对
+     * @param code 6位配对码
+     * @param port 配对服务端口
+     */
+    private fun performPairingWithCode(code: String, port: Int) {
+        if (port <= 0) {
+            Log.e(tag, "无效的端口号: $port")
+            showOcrErrorNotification(getString(R.string.ocr_error_invalid_port))
+            return
+        }
+
+        Log.i(tag, "执行配对: code=$code, port=$port")
+        // 调用现有的配对方法
+        onInput(code, port)
     }
 
     /**
@@ -411,27 +490,12 @@ class AdbPairingService : Service() {
         }
     }
 
-    /**
-     * 使用识别到的配对码执行无线调试配对
-     * @param code 6位配对码
-     * @param port 配对服务端口
-     */
-    private fun performPairingWithCode(code: String, port: Int) {
-        if (port <= 0) {
-            Log.e(tag, "无效的端口号: $port")
-            showOcrErrorNotification(getString(R.string.ocr_error_invalid_port))
-            return
-        }
-
-        Log.i(tag, "执行配对: code=$code, port=$port")
-        // 调用现有的配对方法
-        onInput(code, port)
-    }
-
     override fun onDestroy() {
         super.onDestroy()
         isRunning = false
         retryHandler.removeCallbacksAndMessages(null)
+        // 取消所有协程
+        serviceScope.cancel()
         // 停止截图监听，释放资源
         stopScreenshotListener()
         stopSearch()
@@ -498,13 +562,12 @@ class AdbPairingService : Service() {
         }
     }
 
-    @OptIn(DelicateCoroutinesApi::class)
     private fun onInput(code: String, port: Int): Notification {
         if (port == -1) {
             return createManualInputNotification(-1)
         }
 
-        GlobalScope.launch(Dispatchers.IO) {
+        serviceScope.launch(Dispatchers.IO) {
             val host = "127.0.0.1"
 
             val key = try {
@@ -646,9 +709,8 @@ class AdbPairingService : Service() {
         }
     }
 
-    @OptIn(DelicateCoroutinesApi::class)
     private fun grantSecureSettingsPermission(port: Int) {
-        GlobalScope.launch(Dispatchers.IO) {
+        serviceScope.launch(Dispatchers.IO) {
             try {
                 val key = AdbKey(PreferenceAdbKeyStore(StellarSettings.getPreferences()), "stellar")
 

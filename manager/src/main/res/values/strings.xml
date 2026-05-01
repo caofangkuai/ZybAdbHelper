@@ -302,7 +302,7 @@
     <string name="stop_search">停止搜索</string>
     <string name="cannot_find_pairing">搜索不到配对</string>
     <string name="pairing_code">配对码</string>
-    <string name="enter_pairing_code_action">输入配对码</string>
+    <string name="enter_pairing_code_action">请按 关机+音量下键 对配对码截图</string>
     <string name="pairing_service_not_found">未找到配对服务</string>
     <string name="ensure_wireless_debugging_open">请确保已打开无线调试配对页面</string>
     <string name="pairing_in_progress">正在进行配对</string>
@@ -359,4 +359,10 @@
 	<string name="ocr_error_no_code">未识别到有效配对码</string>
 	<string name="ocr_error_exception">OCR识别异常: %s</string>
 	<string name="ocr_error_invalid_port">无效的服务端口</string>
+	
+	
+	<!-- 截图监听 -->
+	<string name="missing_storage_permission">缺少存储权限，无法自动检测截图</string>
+	<string name="auto_detect_unavailable">自动检测不可用</string>
+	<string name="please_enter_code_manually">请手动输入配对码</string>
 </resources>
