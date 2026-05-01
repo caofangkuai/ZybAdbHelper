@@ -88,9 +88,21 @@ fun TerminalScreen(
     var commands by remember { mutableStateOf(emptyList<CommandItem>()) }
     val scope = rememberCoroutineScope()
 
-    LaunchedEffect(Unit) {
-        commands = loadCommands(context)
-    }
+	LaunchedEffect(Unit) {
+    	var loadedCommands = loadCommands(context)
+    	if (loadedCommands.isEmpty()) {
+        	val defaultCommands = listOf(
+            	CommandItem(
+              		title = "禁用PadMs",
+              		command = "pm disable-user com.zuoyebang.padms",
+                	mode = CommandMode.CLICK_EXECUTE
+            	)
+        	)
+        	loadedCommands = defaultCommands
+        	saveCommands(context, defaultCommands)
+    	}
+    	commands = loadedCommands
+	}
 
     val gridColumns = if (screenConfig.isLandscape) 4 else 2
 
