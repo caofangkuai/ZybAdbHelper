@@ -7,20 +7,25 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.RemoteInput
 import android.app.Service
+import android.content.ContentResolver
+import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.database.ContentObserver
 import android.graphics.Bitmap
+import android.net.Uri
 import android.os.Build
+import android.os.Environment
 import android.os.Handler
 import android.os.IBinder
-import android.os.Looper
+import android.os.Loeder
+import android.provider.MediaStore
 import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.core.content.edit
 import androidx.lifecycle.Observer
 import com.cfks.utils.ScreenCaptureHelper
-import com.cfks.utils.ScreenshotListener
 import com.cfks.utils.TesseractHelper
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
@@ -75,21 +80,20 @@ class AdbPairingService : Service() {
     private val retryHandler = Handler(Looper.getMainLooper())
     private var discoveredPort: Int = -1
 
-    // 截图监听器实例
-    private var screenshotListener: ScreenshotListener? = null
+    // 媒体内容观察者（替代 FileObserver，更可靠）
+    private var mediaContentObserver: ContentObserver? = null
+    private var lastProcessedPath = ""
+    private var lastProcessTime = 0L
 
-    // OCR处理中的标志，避免重复处理同一张截图
+    // OCR处理中的标志
     private var isOcrProcessing = false
 
     /**
      * 观察者：监听配对服务端口
-     * 当发现无线调试配对服务时触发
      */
     private val observer = Observer<Int> { port ->
         Log.i(tag, "配对服务端口: $port")
-        if (port <= 0) {
-            return@Observer
-        }
+        if (port <= 0) return@Observer
 
         discoveredPort = port
 
@@ -102,8 +106,7 @@ class AdbPairingService : Service() {
                 startForeground(notificationId, notification)
             }
             Log.i(tag, "已更新通知为输入配对码")
-            // 发现配对服务后，启动截图监听以自动获取配对码
-            startScreenshotListener()
+            startScreenshotMonitor()
         } catch (e: Exception) {
             Log.e(tag, "更新通知失败", e)
             getSystemService(NotificationManager::class.java).notify(notificationId, notification)
@@ -116,8 +119,7 @@ class AdbPairingService : Service() {
                 .setAutoCancel(true)
                 .build()
             getSystemService(NotificationManager::class.java).notify(alertNotificationId, alertNotification)
-            // 发现配对服务后，启动截图监听以自动获取配对码
-            startScreenshotListener()
+            startScreenshotMonitor()
         }
     }
 
@@ -128,7 +130,6 @@ class AdbPairingService : Service() {
 
         val notificationManager = getSystemService(NotificationManager::class.java)
 
-        // 创建普通通知渠道
         notificationManager.createNotificationChannel(
             NotificationChannel(
                 notificationChannel,
@@ -140,7 +141,6 @@ class AdbPairingService : Service() {
                 setAllowBubbles(false)
             })
 
-        // 创建提醒通知渠道（带振动）
         notificationManager.createNotificationChannel(
             NotificationChannel(
                 alertNotificationChannel,
@@ -194,9 +194,6 @@ class AdbPairingService : Service() {
         return START_REDELIVER_INTENT
     }
 
-    /**
-     * 开始搜索配对服务
-     */
     private fun startSearch() {
         if (started) return
         started = true
@@ -208,9 +205,6 @@ class AdbPairingService : Service() {
         ).apply { start() }
     }
 
-    /**
-     * 停止搜索配对服务
-     */
     private fun stopSearch() {
         if (!started) return
         started = false
@@ -222,78 +216,178 @@ class AdbPairingService : Service() {
     }
 
     /**
-     * 启动截图监听器
-     * 监听系统截图事件，用于自动获取无线调试配对码
+     * 启动截图监听（使用 MediaStore ContentObserver，更可靠）
      */
-    private fun startScreenshotListener() {
-        if (screenshotListener != null) {
-            Log.d(tag, "截图监听器已存在，跳过重复启动")
+    private fun startScreenshotMonitor() {
+        if (mediaContentObserver != null) {
+            Log.d(tag, "截图监听已存在，跳过重复启动")
             return
         }
 
-        Log.i(tag, "启动截图监听器，等待无线调试配对码截图...")
+        Log.i(tag, "启动截图监听，等待无线调试配对码截图...")
         
-        // 显示监听器已启动的通知
-        showScreenshotListenerStartedNotification()
+        showNotification("📸 截图监听已启动", "正在等待无线调试配对码截图...")
 
-        screenshotListener = ScreenshotListener(this, object : ScreenshotListener.Callback {
-            override fun onScreenshotTaken(filePath: String) {
-                Log.i(tag, "检测到截图文件: $filePath")
+        // 使用 ContentObserver 监听 MediaStore 的变化
+        mediaContentObserver = object : ContentObserver(Handler(Looper.getMainLooper())) {
+            override fun onChange(selfChange: Boolean, uri: Uri?) {
+                super.onChange(selfChange, uri)
+                if (uri == null) return
+                
+                Log.d(tag, "MediaStore 变化: $uri")
+                
+                // 检查是否是图片插入事件
+                if (uri.toString().contains(MediaStore.Images.Media.EXTERNAL_CONTENT_URI.toString())) {
+                    // 延迟一点等待文件写入完成
+                    retryHandler.postDelayed({
+                        checkLatestScreenshot()
+                    }, 500)
+                }
+            }
+        }
+        
+        contentResolver.registerContentObserver(
+            MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+            true,
+            mediaContentObserver!!
+        )
+        
+        // 也检查一下现有的截图目录
+        checkExistingScreenshots()
+    }
+
+    /**
+     * 检查最新截图
+     */
+    private fun checkLatestScreenshot() {
+        try {
+            val screenshots = getLatestScreenshots()
+            if (screenshots.isNotEmpty()) {
+                val latest = screenshots.first()
+                val filePath = latest.path
+                val modifiedTime = latest.dateModified
+                
+                // 避免重复处理同一张截图
+                if (filePath == lastProcessedPath || 
+                    (System.currentTimeMillis() - lastProcessTime < 3000)) {
+                    Log.d(tag, "跳过重复处理: $filePath")
+                    return
+                }
+                
+                Log.i(tag, "发现最新截图: $filePath")
+                lastProcessedPath = filePath
+                lastProcessTime = System.currentTimeMillis()
+                
                 processScreenshotForPairingCode(filePath)
             }
-            
-            override fun onError(error: String) {
-                Log.e(tag, "截图监听错误: $error")
-                // 显示错误通知
-                showOcrErrorNotification(getString(R.string.screenshot_listener_error, error))
+        } catch (e: Exception) {
+            Log.e(tag, "检查最新截图失败", e)
+        }
+    }
+
+    /**
+     * 检查已存在的截图（启动时检查一次）
+     */
+    private fun checkExistingScreenshots() {
+        try {
+            val screenshots = getLatestScreenshots()
+            if (screenshots.isNotEmpty()) {
+                val latest = screenshots.first()
+                Log.i(tag, "发现已存在的截图: ${latest.path}")
+                showNotification("📸 检测到已有截图", "正在处理，请稍候...")
+                processScreenshotForPairingCode(latest.path)
             }
-        })
+        } catch (e: Exception) {
+            Log.e(tag, "检查现有截图失败", e)
+        }
     }
 
     /**
-     * 停止截图监听器
+     * 获取最新的截图列表
      */
-    private fun stopScreenshotListener() {
-        screenshotListener?.stop()
-        screenshotListener = null
-        Log.d(tag, "截图监听器已停止")
+    private data class ScreenshotInfo(val path: String, val dateModified: Long)
+
+    private fun getLatestScreenshots(): List<ScreenshotInfo> {
+        val screenshots = mutableListOf<ScreenshotInfo>()
+        
+        val projection = arrayOf(
+            MediaStore.Images.Media.DATA,
+            MediaStore.Images.Media.DATE_MODIFIED
+        )
+        
+        val selection = "${MediaStore.Images.Media.RELATIVE_PATH} LIKE ? OR ${MediaStore.Images.Media.DATA} LIKE ?"
+        val selectionArgs = arrayOf(
+            "%Screenshots%",
+            "%Screenshots%"
+        )
+        
+        val sortOrder = "${MediaStore.Images.Media.DATE_MODIFIED} DESC"
+        
+        val cursor = contentResolver.query(
+            MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+            projection,
+            selection,
+            selectionArgs,
+            sortOrder
+        )
+        
+        cursor?.use {
+            while (it.moveToNext()) {
+                val path = it.getString(it.getColumnIndexOrThrow(MediaStore.Images.Media.DATA))
+                val dateModified = it.getLong(it.getColumnIndexOrThrow(MediaStore.Images.Media.DATE_MODIFIED)) * 1000
+                
+                // 只处理最近30秒内的截图
+                if (System.currentTimeMillis() - dateModified < 30000) {
+                    screenshots.add(ScreenshotInfo(path, dateModified))
+                }
+            }
+        }
+        
+        return screenshots
     }
 
     /**
-     * 显示截图监听器已启动的通知
+     * 停止截图监听
      */
-    private fun showScreenshotListenerStartedNotification() {
+    private fun stopScreenshotMonitor() {
+        mediaContentObserver?.let {
+            contentResolver.unregisterContentObserver(it)
+            mediaContentObserver = null
+        }
+        lastProcessedPath = ""
+        Log.d(tag, "截图监听已停止")
+    }
+
+    /**
+     * 显示普通通知
+     */
+    private fun showNotification(title: String, content: String) {
         val notification = Notification.Builder(this, alertNotificationChannel)
             .setSmallIcon(R.drawable.ic_stellar)
-            .setContentTitle(getString(R.string.screenshot_listener_started))
-            .setContentText(getString(R.string.screenshot_listener_started_text))
+            .setContentTitle(title)
+            .setContentText(content)
             .setAutoCancel(true)
             .build()
         
         try {
             getSystemService(NotificationManager::class.java).notify(screenshotNotifyId, notification)
-            Log.d(tag, "显示截图监听启动通知")
         } catch (e: Exception) {
-            Log.e(tag, "显示截图监听启动通知失败", e)
+            Log.e(tag, "显示通知失败", e)
         }
     }
 
     /**
      * 处理截图，通过OCR识别配对码
-     * @param filePath 截图文件路径
      */
     private fun processScreenshotForPairingCode(filePath: String) {
-        // 避免重复处理
         if (isOcrProcessing) {
             Log.d(tag, "OCR处理中，跳过本次截图")
-            showOcrProcessingNotification(getString(R.string.ocr_processing_wait))
+            showNotification("⚠️ 处理中", "已有截图在处理中，请稍候...")
             return
         }
 
         Log.i(tag, "开始处理截图: $filePath")
-        
-        // 显示正在识别状态
-        showOcrProcessingNotification(getString(R.string.ocr_processing_analyzing))
+        showNotification("🔍 正在识别", "正在分析截图中的配对码...")
 
         GlobalScope.launch(Dispatchers.IO) {
             isOcrProcessing = true
@@ -303,7 +397,7 @@ class AdbPairingService : Service() {
                 val file = File(filePath)
                 if (!file.exists()) {
                     Log.e(tag, "截图文件不存在: $filePath")
-                    showOcrErrorNotification(getString(R.string.ocr_error_file_not_found))
+                    showNotification("❌ 识别失败", "截图文件不存在")
                     return@launch
                 }
                 
@@ -316,99 +410,93 @@ class AdbPairingService : Service() {
                 val fullBitmap = try {
                     android.graphics.BitmapFactory.decodeFile(filePath, options)
                 } catch (e: OutOfMemoryError) {
-                    Log.e(tag, "内存不足，无法加载截图", e)
-                    showOcrErrorNotification(getString(R.string.ocr_error_out_of_memory, e.message))
-                    return@launch
-                } catch (e: Exception) {
-                    Log.e(tag, "加载截图异常", e)
-                    showOcrErrorNotification(getString(R.string.ocr_error_loading_detail, e.message))
+                    Log.e(tag, "内存不足", e)
+                    showNotification("❌ 内存不足", "请关闭其他应用后重试")
                     return@launch
                 }
 
                 if (fullBitmap == null) {
-                    Log.e(tag, "无法加载截图文件: $filePath")
-                    showOcrErrorNotification(getString(R.string.ocr_error_loading))
+                    Log.e(tag, "无法加载截图: $filePath")
+                    showNotification("❌ 加载失败", "无法加载截图文件")
                     return@launch
                 }
                 
                 Log.d(tag, "截图尺寸: ${fullBitmap.width}x${fullBitmap.height}")
 
-                // 3. 获取适配当前设备分辨率的裁剪区域
+                // 3. 获取裁剪区域
                 val captureRect = try {
                     ScreenCaptureHelper.getAdaptedCaptureRect()
                 } catch (e: Exception) {
                     Log.e(tag, "获取裁剪区域失败", e)
                     fullBitmap.recycle()
-                    showOcrErrorNotification(getString(R.string.ocr_error_crop_region, e.message))
+                    showNotification("❌ 裁剪失败", "获取裁剪区域失败")
                     return@launch
                 }
-                Log.d(tag, "裁剪区域: left=${captureRect.left}, top=${captureRect.top}, right=${captureRect.right}, bottom=${captureRect.bottom}")
+                Log.d(tag, "裁剪区域: ${captureRect.toShortString()}")
 
-                // 4. 根据预设区域裁剪Bitmap
+                // 4. 裁剪 Bitmap
                 val croppedBitmap = try {
                     ScreenCaptureHelper.cropBitmap(fullBitmap, captureRect)
                 } catch (e: Exception) {
-                    Log.e(tag, "截图裁剪失败", e)
+                    Log.e(tag, "裁剪失败", e)
                     fullBitmap.recycle()
-                    showOcrErrorNotification(getString(R.string.ocr_error_crop, e.message))
+                    showNotification("❌ 裁剪失败", e.message ?: "未知错误")
                     return@launch
                 } finally {
-                    fullBitmap.recycle() // 释放原始bitmap内存
+                    fullBitmap.recycle()
                 }
 
                 if (croppedBitmap == null) {
-                    Log.e(tag, "截图裁剪结果为空")
-                    showOcrErrorNotification(getString(R.string.ocr_error_crop_empty))
+                    Log.e(tag, "裁剪结果为空")
+                    showNotification("❌ 裁剪失败", "裁剪区域无效")
                     return@launch
                 }
                 
                 Log.d(tag, "裁剪后尺寸: ${croppedBitmap.width}x${croppedBitmap.height}")
 
-                // 5. 使用Tesseract OCR识别裁剪后的图片中的文字
+                // 5. OCR 识别
                 Log.d(tag, "开始OCR识别...")
+                showNotification("🔍 OCR识别中", "正在识别截图中的文字...")
+                
                 val recognizedText = try {
                     TesseractHelper.recognizeText(this@AdbPairingService, croppedBitmap)
                 } catch (e: Exception) {
                     Log.e(tag, "OCR识别异常", e)
                     croppedBitmap.recycle()
-                    showOcrErrorNotification(getString(R.string.ocr_error_ocr_failed, e.message))
+                    showNotification("❌ OCR错误", e.message ?: "识别失败")
                     return@launch
                 } finally {
-                    croppedBitmap.recycle() // 释放裁剪后bitmap内存
+                    croppedBitmap.recycle()
                 }
 
                 if (recognizedText.isNullOrEmpty()) {
                     Log.w(tag, "OCR识别结果为空")
-                    showOcrErrorNotification(getString(R.string.ocr_error_no_text))
+                    showNotification("❌ 未识别到文字", "请确保截图清晰且包含配对码")
                     return@launch
                 }
 
-                Log.d(tag, "OCR识别原始结果: $recognizedText")
+                Log.d(tag, "OCR原始结果: $recognizedText")
 
-                // 6. 从识别结果中提取6位数配对码
+                // 6. 提取配对码
                 val pairCode = extractPairCode(recognizedText)
 
                 if (pairCode == null) {
-                    Log.w(tag, "无法从识别结果中提取配对码: $recognizedText")
-                    showOcrErrorNotification(getString(R.string.ocr_error_no_code_detail, recognizedText.take(50)))
+                    Log.w(tag, "未找到配对码: $recognizedText")
+                    showNotification("❌ 未找到配对码", "识别内容: ${recognizedText.take(30)}...")
                     return@launch
                 }
 
-                Log.i(tag, "OCR成功识别到配对码: $pairCode")
+                Log.i(tag, "成功识别配对码: $pairCode")
+                showNotification("✅ 识别成功", "配对码: $pairCode，正在配对...")
 
-                // 7. 在主线程执行配对
+                // 7. 执行配对
                 retryHandler.post {
-                    // 显示已识别到配对码的成功状态
-                    showOcrSuccessNotification(pairCode)
-                    // 执行无线调试配对
                     performPairingWithCode(pairCode, discoveredPort)
                 }
 
             } catch (e: Exception) {
-                Log.e(tag, "OCR处理截图异常", e)
-                retryHandler.post {
-                    showOcrErrorNotification(getString(R.string.ocr_error_exception_detail, e.message))
-                }
+                Log.e(tag, "处理异常", e)
+                showNotification("❌ 处理异常", e.message ?: "未知错误")
             } finally {
                 isOcrProcessing = false
             }
@@ -416,18 +504,14 @@ class AdbPairingService : Service() {
     }
 
     /**
-     * 从OCR识别结果文本中提取6位数字配对码
-     * @param text OCR识别出的原始文本
-     * @return 6位数字配对码，未找到则返回null
+     * 提取6位数字配对码
      */
     private fun extractPairCode(text: String): String? {
-        // 匹配独立的6位数字（有单词边界）
         val pattern = Pattern.compile("\\b(\\d{6})\\b")
         val matcher = pattern.matcher(text)
         if (matcher.find()) {
             return matcher.group(1)
         }
-        // 兼容：匹配连续出现的6位数字（没有单词边界，如空格分隔）
         val pattern2 = Pattern.compile("(\\d{6})")
         val matcher2 = pattern2.matcher(text.replace(" ", ""))
         if (matcher2.find()) {
@@ -437,79 +521,15 @@ class AdbPairingService : Service() {
     }
 
     /**
-     * 显示OCR识别进行中的通知
-     */
-    private fun showOcrProcessingNotification(message: String) {
-        val notification = Notification.Builder(this, alertNotificationChannel)
-            .setSmallIcon(R.drawable.ic_stellar)
-            .setContentTitle(getString(R.string.ocr_processing_title))
-            .setContentText(message)
-            .setAutoCancel(true)
-            .build()
-
-        try {
-            getSystemService(NotificationManager::class.java).notify(alertNotificationId, notification)
-            Log.d(tag, "显示OCR处理通知: $message")
-        } catch (e: Exception) {
-            Log.e(tag, "显示OCR处理通知失败", e)
-        }
-    }
-
-    /**
-     * 显示OCR识别成功并获取到配对码的通知
-     * @param pairCode 识别到的配对码
-     */
-    private fun showOcrSuccessNotification(pairCode: String) {
-        val notification = Notification.Builder(this, alertNotificationChannel)
-            .setSmallIcon(R.drawable.ic_stellar)
-            .setContentTitle(getString(R.string.ocr_success_title))
-            .setContentText(getString(R.string.ocr_success_text, pairCode))
-            .setAutoCancel(true)
-            .build()
-
-        try {
-            getSystemService(NotificationManager::class.java).notify(alertNotificationId, notification)
-            Log.d(tag, "显示OCR成功通知: $pairCode")
-        } catch (e: Exception) {
-            Log.e(tag, "显示OCR成功通知失败", e)
-        }
-    }
-
-    /**
-     * 显示OCR识别失败的通知
-     * @param message 失败原因描述
-     */
-    private fun showOcrErrorNotification(message: String) {
-        val notification = Notification.Builder(this, alertNotificationChannel)
-            .setSmallIcon(R.drawable.ic_stellar)
-            .setContentTitle(getString(R.string.ocr_error_title))
-            .setContentText(message.take(100))
-            .setStyle(Notification.BigTextStyle().bigText(message))
-            .setAutoCancel(true)
-            .build()
-
-        try {
-            getSystemService(NotificationManager::class.java).notify(alertNotificationId, notification)
-            Log.w(tag, "显示OCR错误通知: $message")
-        } catch (e: Exception) {
-            Log.e(tag, "显示OCR错误通知失败", e)
-        }
-    }
-
-    /**
-     * 使用识别到的配对码执行无线调试配对
-     * @param code 6位配对码
-     * @param port 配对服务端口
+     * 执行配对
      */
     private fun performPairingWithCode(code: String, port: Int) {
         if (port <= 0) {
-            Log.e(tag, "无效的端口号: $port")
-            showOcrErrorNotification(getString(R.string.ocr_error_invalid_port, port.toString()))
+            Log.e(tag, "无效端口: $port")
+            showNotification("❌ 配对失败", "无效的服务端口")
             return
         }
-
         Log.i(tag, "执行配对: code=$code, port=$port")
-        // 调用现有的配对方法
         onInput(code, port)
     }
 
@@ -517,8 +537,7 @@ class AdbPairingService : Service() {
         super.onDestroy()
         isRunning = false
         retryHandler.removeCallbacksAndMessages(null)
-        // 停止截图监听，释放资源
-        stopScreenshotListener()
+        stopScreenshotMonitor()
         stopSearch()
         adbMdns?.destroy()
         adbMdns = null
@@ -526,9 +545,6 @@ class AdbPairingService : Service() {
         connectMdns = null
     }
 
-    /**
-     * 启动服务
-     */
     private fun onStart(): Notification {
         if (isRunning && started) {
             Log.i(tag, "服务已在运行，忽略重复启动")
@@ -539,36 +555,24 @@ class AdbPairingService : Service() {
         return searchingNotification
     }
 
-    /**
-     * 停止搜索
-     */
     private fun onStopSearch(): Notification {
         stopSearch()
-        // 停止截图监听
-        stopScreenshotListener()
+        stopScreenshotMonitor()
         return createManualInputNotification(discoveredPort)
     }
 
-    /**
-     * 停止并重试
-     */
     private fun onStopAndRetry(): Notification {
         stopSearch()
-        // 停止并重新创建截图监听器
-        stopScreenshotListener()
+        stopScreenshotMonitor()
         adbMdns?.destroy()
         adbMdns = null
         return onStart()
     }
 
-    /**
-     * 搜索次数达到上限时的处理
-     */
     private fun onSearchMaxRefresh() {
         Log.i(tag, "搜索次数已达上限")
         stopSearch()
-        // 停止截图监听
-        stopScreenshotListener()
+        stopScreenshotMonitor()
         val notification = createMaxRefreshNotification()
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
@@ -613,16 +617,12 @@ class AdbPairingService : Service() {
 
     private var connectMdns: AdbMdns? = null
 
-    /**
-     * 处理配对结果
-     */
     private fun handleResult(success: Boolean, exception: Throwable?) {
         retryHandler.post {
             if (success) {
                 Log.i(tag, "配对成功，开始搜索连接服务")
                 stopSearch()
-                // 配对成功后停止截图监听
-                stopScreenshotListener()
+                stopScreenshotMonitor()
 
                 val successNotification = Notification.Builder(this, notificationChannel)
                     .setSmallIcon(R.drawable.ic_stellar)
@@ -690,9 +690,6 @@ class AdbPairingService : Service() {
         }
     }
 
-    /**
-     * 搜索连接服务
-     */
     private fun searchConnectService() {
         val connectObserver = Observer<Int> { port ->
             Log.i(tag, "连接服务端口: $port")
@@ -715,9 +712,6 @@ class AdbPairingService : Service() {
         ).apply { start() }
     }
 
-    /**
-     * 找到连接服务后的处理
-     */
     private fun onConnectServiceFound(port: Int) {
         retryHandler.post {
             Log.i(tag, "找到连接服务端口: $port")
@@ -774,9 +768,6 @@ class AdbPairingService : Service() {
         }
     }
 
-    /**
-     * 跳转到启动器界面
-     */
     private fun navigateToStarter(port: Int) {
         val intent = roro.stellar.manager.ui.features.manager.ManagerActivity.createStarterIntent(
             this,
@@ -793,9 +784,6 @@ class AdbPairingService : Service() {
         stopSelf()
     }
 
-    /**
-     * 连接服务搜索次数达到上限的处理
-     */
     private fun onConnectServiceMaxRefresh() {
         retryHandler.post {
             Log.w(tag, "连接服务搜索次数已达上限，尝试使用系统端口")
