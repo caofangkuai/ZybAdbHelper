@@ -118,7 +118,7 @@ afterEvaluate {
 
 android.applicationVariants.configureEach { variant ->
     variant.outputs.configureEach {
-        outputFileName = "stellar-v${variant.versionName}-${variant.name}.apk"
+        outputFileName = "ZybAdbHelper-${variant.name}.apk"
 
         variant.assembleProvider.get().doLast {
             def outDir = new File(rootDir, "out")
