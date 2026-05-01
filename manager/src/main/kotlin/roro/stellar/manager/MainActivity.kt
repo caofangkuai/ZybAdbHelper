@@ -97,6 +97,7 @@ class MainActivity : ComponentActivity() {
     
     private var permissionsGranted = false
     private var isWaitingForPermission = false
+    private var hasShownDialog = false
 
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -106,6 +107,7 @@ class MainActivity : ComponentActivity() {
         if (allGranted) {
             permissionsGranted = true
             isWaitingForPermission = false
+            showZybAdbHelperDialog()
             updateContent()
         } else {
             isWaitingForPermission = false
@@ -120,7 +122,6 @@ class MainActivity : ComponentActivity() {
         
         enableEdgeToEdge()
         
-        showZybAdbHelperDialog()
         checkAndRequestPermissions()
         updateContent()
 
@@ -159,6 +160,7 @@ class MainActivity : ComponentActivity() {
         if (checkAllPermissionsGranted()) {
             if (!permissionsGranted) {
                 permissionsGranted = true
+                showZybAdbHelperDialog()
                 updateContent()
             }
         } else {
@@ -214,6 +216,7 @@ class MainActivity : ComponentActivity() {
         } else {
             permissionsGranted = true
             isWaitingForPermission = false
+            showZybAdbHelperDialog()
             updateContent()
         }
     }
@@ -235,6 +238,9 @@ class MainActivity : ComponentActivity() {
     }
     
     private fun showZybAdbHelperDialog() {
+    	if (hasShownDialog) return
+    	hasShownDialog = true
+    
         AlertDialog.Builder(this)
             .setTitle("声明")
             .setMessage("ZybAdbHelper 由 caofangkuai 开发，基于 Stellar，为 ZybOS 进行了深度定制")
