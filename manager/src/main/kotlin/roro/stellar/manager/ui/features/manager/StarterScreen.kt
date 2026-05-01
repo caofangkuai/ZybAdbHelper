@@ -68,6 +68,7 @@ import roro.stellar.manager.util.EnvironmentUtils
 import java.net.ConnectException
 import javax.net.ssl.SSLException
 import com.cfks.startanywhere.StartAnyWhere
+import com.cfks.utils.PairingCodeRectHelper
 
 private class NotRootedException : Exception("没有 Root 权限")
 

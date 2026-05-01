@@ -47,6 +47,11 @@ public class PairingCodeRectHelper {
             codeView.setText("114514");
         }
         
+        TextView ipAddrView = dialogView.findViewById(R.id.ip_addr);
+        if (ipAddrView != null) {
+            ipAddrView.setText("192.168.0.100:45465");
+        }
+        
         View sixDigitLayout = dialogView.findViewById(R.id.l_pairing_six_digit);
         if (sixDigitLayout != null) {
             sixDigitLayout.setVisibility(View.VISIBLE);
@@ -56,7 +61,7 @@ public class PairingCodeRectHelper {
                 .setView(dialogView)
                 .create();
         
-        dialog.setTitle("WLAN 配对");
+        dialog.setTitle("与设备配对");
         dialog.setButton(AlertDialog.BUTTON_NEGATIVE, "取消", (d, which) -> {});
         
         return dialog;
