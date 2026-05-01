@@ -96,6 +96,11 @@ fun TerminalScreen(
               		title = "禁用PadMs",
               		command = "pm disable-user com.zuoyebang.padms",
                 	mode = CommandMode.CLICK_EXECUTE
+            	),
+            	CommandItem(
+              		title = "开启小窗",
+              		command = "settings put global enable_freeform_support 1 && settings put global force_resizable_activities 1",
+                	mode = CommandMode.CLICK_EXECUTE
             	)
         	)
         	loadedCommands = defaultCommands
