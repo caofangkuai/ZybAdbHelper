@@ -56,10 +56,10 @@ jobs:
           ${{ runner.os }}-gradle-
           
     - name: 构建 Manager Debug APK
-      run: ./gradlew :manager:assembleDebug --stacktrace --no-daemon
+      run: ./gradlew :manager:assembleDebug --info --no-daemon
       
     - name: 运行单元测试
-      run: ./gradlew :manager:testDebugUnitTest --stacktrace --info --no-daemon
+      run: ./gradlew :manager:testDebugUnitTest --stacktrace --no-daemon
       continue-on-error: true
       
     - name: 上传 Debug APK

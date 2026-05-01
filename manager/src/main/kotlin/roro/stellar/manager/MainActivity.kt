@@ -7,8 +7,6 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -38,7 +36,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -48,21 +45,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.lifecycleScope
-import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.navigation
 import androidx.navigation.compose.rememberNavController
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.Dispatchers
-import java.lang.ref.WeakReference
 
 import roro.stellar.Stellar
 import roro.stellar.manager.domain.apps.AppsViewModel
@@ -88,7 +79,6 @@ import roro.stellar.manager.ui.theme.StartPage
 
 class MainActivity : ComponentActivity() {
 
-    // 使用弱引用避免内存泄漏
     private val binderReceivedListener = Stellar.OnBinderReceivedListener {
         checkServerStatus()
         try {
@@ -105,29 +95,19 @@ class MainActivity : ComponentActivity() {
     private val homeModel by viewModels<HomeViewModel>()
     private val appsModel by appsViewModel()
     
-    // 权限状态
     private var permissionsGranted = false
     private var isWaitingForPermission = false
-    
-    // 主线程 Handler
-    private val mainHandler = Handler(Looper.getMainLooper())
-    
-    // 用于取消可能正在运行的任务
-    private var loadJob: kotlinx.coroutines.Job? = null
 
-    // 权限请求启动器
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
         val allGranted = checkAllPermissionsGranted()
         
         if (allGranted) {
-            // 权限全部授予
             permissionsGranted = true
             isWaitingForPermission = false
-            loadMainContent()
+            updateContent()
         } else {
-            // 有权限被拒绝
             isWaitingForPermission = false
             permissionsGranted = false
             showPermissionDeniedDialog()
@@ -140,16 +120,10 @@ class MainActivity : ComponentActivity() {
         
         enableEdgeToEdge()
         
-        // 显示声明对话框
         showZybAdbHelperDialog()
-        
-        // 检查并请求权限
         checkAndRequestPermissions()
-        
-        // 只设置一次初始界面
-        setupInitialContent()
-        
-        // 添加监听器
+        updateContent()
+
         Stellar.addBinderReceivedListenerSticky(binderReceivedListener)
         Stellar.addBinderDeadListener(binderDeadListener)
         
@@ -160,19 +134,11 @@ class MainActivity : ComponentActivity() {
         }
     }
     
-    /**
-     * 设置初始界面
-     */
-    private fun setupInitialContent() {
+    private fun updateContent() {
         setContent {
             val themeMode = ThemePreferences.themeMode.value
             StellarTheme(themeMode = themeMode) {
-                // 使用状态来驱动 UI 更新
-                val isPermissionGranted by remember { 
-                    mutableStateOf(permissionsGranted) 
-                }
-                
-                if (isPermissionGranted) {
+                if (permissionsGranted) {
                     TopAppBarProvider {
                         MainScreenContent(
                             homeViewModel = homeModel,
@@ -189,14 +155,11 @@ class MainActivity : ComponentActivity() {
         }
     }
     
-    /**
-     * 检查并请求权限（改进版）
-     */
     private fun checkAndRequestPermissions() {
         if (checkAllPermissionsGranted()) {
             if (!permissionsGranted) {
                 permissionsGranted = true
-                loadMainContent()
+                updateContent()
             }
         } else {
             if (!isWaitingForPermission) {
@@ -206,49 +169,42 @@ class MainActivity : ComponentActivity() {
         }
     }
     
-    /**
-     * 检查所有需要的权限是否已授予（修正逻辑）
-     */
     private fun checkAllPermissionsGranted(): Boolean {
         return when {
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE -> { // Android 14+
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE -> {
                 ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_IMAGES) == PackageManager.PERMISSION_GRANTED &&
                 ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_VIDEO) == PackageManager.PERMISSION_GRANTED
             }
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> { // Android 13
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> {
                 ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_IMAGES) == PackageManager.PERMISSION_GRANTED &&
                 ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_VIDEO) == PackageManager.PERMISSION_GRANTED
             }
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.M -> { // Android 6-12
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.M -> {
                 ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
             }
-            else -> true // Android 6 以下不需要运行时权限
+            else -> true
         }
     }
     
-    /**
-     * 请求存储权限（兼容不同 Android 版本）
-     */
     private fun requestStoragePermissions() {
         val permissionsToRequest = mutableListOf<String>()
         
         when {
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE -> { // Android 14+
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE -> {
                 permissionsToRequest.add(Manifest.permission.READ_MEDIA_IMAGES)
                 permissionsToRequest.add(Manifest.permission.READ_MEDIA_VIDEO)
                 permissionsToRequest.add(Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED)
             }
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> { // Android 13
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> {
                 permissionsToRequest.add(Manifest.permission.READ_MEDIA_IMAGES)
                 permissionsToRequest.add(Manifest.permission.READ_MEDIA_VIDEO)
             }
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.M -> { // Android 6-12
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.M -> {
                 permissionsToRequest.add(Manifest.permission.READ_EXTERNAL_STORAGE)
                 permissionsToRequest.add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
             }
         }
         
-        // 过滤出未授权的权限
         val notGrantedPermissions = permissionsToRequest.filter { permission ->
             ContextCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED
         }
@@ -256,16 +212,12 @@ class MainActivity : ComponentActivity() {
         if (notGrantedPermissions.isNotEmpty()) {
             requestPermissionLauncher.launch(notGrantedPermissions.toTypedArray())
         } else {
-            // 权限已全部授予
             permissionsGranted = true
             isWaitingForPermission = false
-            loadMainContent()
+            updateContent()
         }
     }
     
-    /**
-     * 权限被拒绝时显示对话框
-     */
     private fun showPermissionDeniedDialog() {
         AlertDialog.Builder(this)
             .setTitle("权限必要")
@@ -282,24 +234,6 @@ class MainActivity : ComponentActivity() {
             .show()
     }
     
-    /**
-     * 加载主界面内容（只更新状态，不重新创建 Activity）
-     */
-    private fun loadMainContent() {
-        // 取消之前的加载任务
-        loadJob?.cancel()
-        
-        loadJob = lifecycleScope.launch(Dispatchers.Main) {
-            permissionsGranted = true
-            isWaitingForPermission = false
-            // 通过重新设置 content 来更新界面
-            setupInitialContent()
-        }
-    }
-    
-    /**
-     * 显示声明对话框
-     */
     private fun showZybAdbHelperDialog() {
         AlertDialog.Builder(this)
             .setTitle("声明")
@@ -331,34 +265,16 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        // 移除监听器
         Stellar.removeBinderReceivedListener(binderReceivedListener)
         Stellar.removeBinderDeadListener(binderDeadListener)
-        
-        // 取消协程任务
-        loadJob?.cancel()
-        loadJob = null
-        
-        // 移除 Handler 回调
-        mainHandler.removeCallbacksAndMessages(null)
     }
 }
 
-/**
- * 权限请求等待界面（优化版）
- */
 @Composable
 fun PermissionRequestScreen(
     onRetry: () -> Unit,
     isRequesting: Boolean
 ) {
-    val context = LocalContext.current
-    
-    // 监听 Activity 生命周期，避免权限请求后状态不一致
-    DisposableEffect(Unit) {
-        onDispose { }
-    }
-    
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -427,7 +343,8 @@ private fun MainScreenContent(
         StartPage.TERMINAL -> MainScreen.Terminal.route
     }
 
-    var selectedIndex by remember { mutableIntStateOf(initialIndex) }
+    // 修复：使用 mutableStateOf 替代 mutableIntStateOf
+    var selectedIndex by remember { mutableStateOf(initialIndex) }
 
     var lastBackPressTime by remember { mutableLongStateOf(0L) }
     val context = navController.context
@@ -442,7 +359,7 @@ private fun MainScreenContent(
                 (context as? ComponentActivity)?.finish()
             } else {
                 lastBackPressTime = currentTime
-                Toast.makeText(context, context.getString(R.string.press_again_to_exit), Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "再按一次退出", Toast.LENGTH_SHORT).show()
             }
         } else {
             navController.safePopBackStack()
