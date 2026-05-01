@@ -118,7 +118,7 @@ afterEvaluate {
 
 android.applicationVariants.configureEach { variant ->
     variant.outputs.configureEach {
-        outputFileName = "ZybAdbHelper-${variant.name}.apk"
+        outputFileName = "app-${variant.name}.apk"
 
         variant.assembleProvider.get().doLast {
             def outDir = new File(rootDir, "out")
