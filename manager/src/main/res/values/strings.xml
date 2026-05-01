@@ -348,18 +348,19 @@
     <string name="downloading">下载中</string>
     <string name="download_failed">下载失败: %s</string>
     
-    <!-- OCR 识别相关字符串 -->
+	<!-- OCR 识别相关字符串 -->
 	<string name="ocr_processing_title">🔍 正在识别配对码</string>
 	<string name="ocr_processing_text">正在分析无线调试配对码截图...</string>
 	<string name="ocr_success_title">✅ 已识别配对码</string>
 	<string name="ocr_success_text">正在使用配对码 %s 进行配对</string>
 	<string name="ocr_error_title">❌ 识别失败</string>
 	<string name="ocr_error_loading">无法加载截图文件</string>
+	<string name="ocr_error_out_of_memory">内存不足，无法加载截图</string>
 	<string name="ocr_error_crop">截图裁剪失败</string>
 	<string name="ocr_error_no_code">未识别到有效配对码</string>
-	<string name="ocr_error_exception">OCR识别异常: %s</string>
-	<string name="ocr_error_invalid_port">无效的服务端口</string>
-	
+	<string name="ocr_error_ocr_failed">OCR识别引擎异常</string>
+	<string name="ocr_error_exception">OCR处理异常</string>
+	<string name="ocr_error_invalid_port">无效的服务端口: %s</string>
 	
 	<!-- 截图监听 -->
 	<string name="missing_storage_permission">缺少存储权限，无法自动检测截图</string>
