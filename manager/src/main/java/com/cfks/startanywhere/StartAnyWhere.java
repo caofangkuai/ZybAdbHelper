@@ -63,6 +63,8 @@ public class StartAnyWhere {
         obtain.appendFrom(obtain2, 0, dataSize);
         obtain.setDataPosition(0);
         bundle.readFromParcel(obtain);
+        
+        AuthService.addAccountResponse = bundle;
         if (context == null) {
             return;
         }
