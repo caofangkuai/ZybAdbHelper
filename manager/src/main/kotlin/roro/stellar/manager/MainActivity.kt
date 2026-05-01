@@ -1,5 +1,6 @@
 package roro.stellar.manager
 
+import android.content.res.Configuration
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
