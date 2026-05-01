@@ -21,14 +21,12 @@ public class AuthService extends Service {
 
     @Override
     public IBinder onBind(Intent intent) {
-        Logger.debug("AuthService onBind invoked");
         return new Authenticator(this).getIBinder();
     }
 
     private static class Authenticator extends AbstractAccountAuthenticator {
         @Override
         public Bundle addAccount(AccountAuthenticatorResponse response, String accountType, String authTokenType, String[] requiredFeatures, Bundle options) throws NetworkErrorException {
-            Logger.debug("AuthService addAccount callback invoked");
             return addAccountResponse;
         }
 
