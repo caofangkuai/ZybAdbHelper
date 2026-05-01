@@ -68,7 +68,7 @@ fun HomeScreen(
             .nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             StandardLargeTopAppBar(
-                title = "Stellar",
+                title = "ZybAdbHelper",
                 scrollBehavior = scrollBehavior
             )
         }
