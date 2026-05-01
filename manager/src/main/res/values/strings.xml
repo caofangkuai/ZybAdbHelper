@@ -366,4 +366,5 @@
 	<string name="missing_storage_permission">缺少存储权限，无法自动检测截图</string>
 	<string name="auto_detect_unavailable">自动检测不可用</string>
 	<string name="please_enter_code_manually">请手动输入配对码</string>
+	<string name="screenshot_listener_error">截图监听错误: %s</string>
 </resources>

@@ -223,25 +223,31 @@ class AdbPairingService : Service() {
         }
     }
 
-    /**
-     * 启动截图监听器
-     * 监听系统截图事件，用于自动获取无线调试配对码
-     */
-    private fun startScreenshotListener() {
-        if (screenshotListener != null) {
-            Log.d(tag, "截图监听器已存在，跳过重复启动")
-            return
-        }
-
-        Log.i(tag, "启动截图监听器，等待无线调试配对码截图...")
-
-        screenshotListener = ScreenshotListener(this, object : ScreenshotListener.Callback {
-            override fun onScreenshotTaken(filePath: String) {
-                Log.i(tag, "检测到截图文件: $filePath")
-                processScreenshotForPairingCode(filePath)
-            }
-        })
+	/**
+ * 启动截图监听器
+ * 监听系统截图事件，用于自动获取无线调试配对码
+ */
+private fun startScreenshotListener() {
+    if (screenshotListener != null) {
+        Log.d(tag, "截图监听器已存在，跳过重复启动")
+        return
     }
+
+    Log.i(tag, "启动截图监听器，等待无线调试配对码截图...")
+
+    screenshotListener = ScreenshotListener(this, object : ScreenshotListener.Callback {
+        override fun onScreenshotTaken(filePath: String) {
+            Log.i(tag, "检测到截图文件: $filePath")
+            processScreenshotForPairingCode(filePath)
+        }
+        
+        override fun onError(error: String) {
+            Log.e(tag, "截图监听错误: $error")
+            // 显示错误通知
+            showOcrErrorNotification(getString(R.string.screenshot_listener_error, error))
+        }
+    })
+}
 
     /**
      * 停止截图监听器
