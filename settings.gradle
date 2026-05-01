@@ -30,6 +30,7 @@ dependencyResolutionManagement {
                 includeGroup("com.github.topjohnwu.libsu")
                 includeGroup("com.github.Kyant0")
                 includeGroup("com.github.jeziellago")
+                includeGroup("com.github.adaptech")
             }
         }
     }
