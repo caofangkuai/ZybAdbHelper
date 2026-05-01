@@ -277,6 +277,9 @@ private fun StepActionContent(
 ) {
     val hasNotificationPermission by viewModel.hasNotificationPermission.collectAsState()
 
+	var showErrorDialog by remember { mutableStateOf(false) }
+    var errorDialogMessage by remember { mutableStateOf("") }
+
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted ->
@@ -284,6 +287,20 @@ private fun StepActionContent(
         if (!isGranted) {
             Toast.makeText(context, context.getString(R.string.need_notification_permission), Toast.LENGTH_LONG).show()
         }
+    }
+    
+    // 显示错误对话框
+    if (showErrorDialog) {
+        AlertDialog(
+            onDismissRequest = { showErrorDialog = false },
+            title = { Text("错误") },
+            text = { Text(errorDialogMessage) },
+            confirmButton = {
+                TextButton(onClick = { showErrorDialog = false }) {
+                    Text("确定")
+                }
+            }
+        )
     }
 
     Column {
@@ -395,42 +412,33 @@ private fun StepActionContent(
                     Spacer(modifier = Modifier.height(12.dp))
                 }
                 Button(
-				    onClick = {
-				        try {
-				            PairingCodeRectHelper.getPairingCodeRect(context)
-				            
-				            try {
-					        	// context.startActivity(
-	                                // Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS).apply {
-	                                    // flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-	                                    // putExtra(":settings:fragment_args_key", "toggle_adb_wireless")
-	                                // }
-	                            // )
-					            val intent = Intent().apply {
-					                component = android.content.ComponentName(
-					                    "com.android.settings",
-					                    "com.android.settings.SettingsActivity"
-					                )
-					                putExtra(":settings:show_fragment", "com.android.settings.development.WirelessDebuggingFragment")
-					                flags = Intent.FLAG_ACTIVITY_NEW_TASK
-					            }
-					            StartAnyWhere.pullSpecialActivity(context, intent)
-					        } catch (_: ActivityNotFoundException) {
-					            Toast.makeText(context, context.getString(R.string.cannot_open_dev_options), Toast.LENGTH_SHORT).show()
-					        }
-				        } catch (e: Exception) {
-				            AlertDialog.Builder(context)
-				                .setTitle("错误")
-				                .setMessage("获取配对码位置失败: ${e.message}")
-				                .setPositiveButton("确定", null)
-				                .show()
-				        }
-				    },
-				    modifier = Modifier.fillMaxWidth(),
-				    shape = AppShape.shapes.cardMedium
-				) {
-				    Text(stringResource(R.string.open_wireless_debugging_settings), Modifier.padding(vertical = 4.dp))
-				}
+                    onClick = {
+                        try {
+                            PairingCodeRectHelper.getPairingCodeRect(context)
+                            
+                            try {
+                                val intent = Intent().apply {
+                                    component = android.content.ComponentName(
+                                        "com.android.settings",
+                                        "com.android.settings.SettingsActivity"
+                                    )
+                                    putExtra(":settings:show_fragment", "com.android.settings.development.WirelessDebuggingFragment")
+                                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                }
+                                StartAnyWhere.pullSpecialActivity(context, intent)
+                            } catch (_: ActivityNotFoundException) {
+                                Toast.makeText(context, context.getString(R.string.cannot_open_dev_options), Toast.LENGTH_SHORT).show()
+                            }
+                        } catch (e: Exception) {
+                            errorDialogMessage = "获取配对码位置失败: ${e.message}"
+                            showErrorDialog = true
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = AppShape.shapes.cardMedium
+                ) {
+                    Text(stringResource(R.string.open_wireless_debugging_settings), Modifier.padding(vertical = 4.dp))
+                }
                 Spacer(modifier = Modifier.height(12.dp))
 
                 OutlinedButton(
