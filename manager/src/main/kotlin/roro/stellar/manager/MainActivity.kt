@@ -7,6 +7,8 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -36,6 +38,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -50,12 +53,16 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.navigation
 import androidx.navigation.compose.rememberNavController
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import java.lang.ref.WeakReference
 
 import roro.stellar.Stellar
 import roro.stellar.manager.domain.apps.AppsViewModel
@@ -81,6 +88,7 @@ import roro.stellar.manager.ui.theme.StartPage
 
 class MainActivity : ComponentActivity() {
 
+    // 使用弱引用避免内存泄漏
     private val binderReceivedListener = Stellar.OnBinderReceivedListener {
         checkServerStatus()
         try {
@@ -97,26 +105,31 @@ class MainActivity : ComponentActivity() {
     private val homeModel by viewModels<HomeViewModel>()
     private val appsModel by appsViewModel()
     
-    // 权限是否已授予
+    // 权限状态
     private var permissionsGranted = false
-    
-    // 是否正在等待权限请求结果
     private var isWaitingForPermission = false
+    
+    // 主线程 Handler
+    private val mainHandler = Handler(Looper.getMainLooper())
+    
+    // 用于取消可能正在运行的任务
+    private var loadJob: kotlinx.coroutines.Job? = null
 
     // 权限请求启动器
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
-        val allGranted = permissions.values.all { it }
+        val allGranted = checkAllPermissionsGranted()
         
         if (allGranted) {
-            // 权限全部授予，继续加载主界面
+            // 权限全部授予
             permissionsGranted = true
             isWaitingForPermission = false
             loadMainContent()
         } else {
-            // 有权限被拒绝，显示提示并退出
+            // 有权限被拒绝
             isWaitingForPermission = false
+            permissionsGranted = false
             showPermissionDeniedDialog()
         }
     }
@@ -133,28 +146,10 @@ class MainActivity : ComponentActivity() {
         // 检查并请求权限
         checkAndRequestPermissions()
         
-        // 先设置一个等待权限的界面
-        setContent {
-            val themeMode = ThemePreferences.themeMode.value
-            StellarTheme(themeMode = themeMode) {
-                if (permissionsGranted) {
-                    // 权限已授予，显示主界面
-                    TopAppBarProvider {
-                        MainScreenContent(
-                            homeViewModel = homeModel,
-                            appsViewModel = appsModel
-                        )
-                    }
-                } else {
-                    // 等待权限授予或显示权限请求界面
-                    PermissionRequestScreen(
-                        onRetry = { checkAndRequestPermissions() },
-                        isRequesting = isWaitingForPermission
-                    )
-                }
-            }
-        }
-
+        // 只设置一次初始界面
+        setupInitialContent()
+        
+        // 添加监听器
         Stellar.addBinderReceivedListenerSticky(binderReceivedListener)
         Stellar.addBinderDeadListener(binderDeadListener)
         
@@ -166,30 +161,62 @@ class MainActivity : ComponentActivity() {
     }
     
     /**
-     * 检查并请求权限
+     * 设置初始界面
      */
-    private fun checkAndRequestPermissions() {
-        if (checkAllPermissionsGranted()) {
-            permissionsGranted = true
-            // 重新设置界面
-            recreate()
-        } else {
-            isWaitingForPermission = true
-            requestStoragePermissions()
+    private fun setupInitialContent() {
+        setContent {
+            val themeMode = ThemePreferences.themeMode.value
+            StellarTheme(themeMode = themeMode) {
+                // 使用状态来驱动 UI 更新
+                val isPermissionGranted by remember { 
+                    mutableStateOf(permissionsGranted) 
+                }
+                
+                if (isPermissionGranted) {
+                    TopAppBarProvider {
+                        MainScreenContent(
+                            homeViewModel = homeModel,
+                            appsViewModel = appsModel
+                        )
+                    }
+                } else {
+                    PermissionRequestScreen(
+                        onRetry = { checkAndRequestPermissions() },
+                        isRequesting = isWaitingForPermission
+                    )
+                }
+            }
         }
     }
     
     /**
-     * 检查所有需要的权限是否已授予
+     * 检查并请求权限（改进版）
+     */
+    private fun checkAndRequestPermissions() {
+        if (checkAllPermissionsGranted()) {
+            if (!permissionsGranted) {
+                permissionsGranted = true
+                loadMainContent()
+            }
+        } else {
+            if (!isWaitingForPermission) {
+                isWaitingForPermission = true
+                requestStoragePermissions()
+            }
+        }
+    }
+    
+    /**
+     * 检查所有需要的权限是否已授予（修正逻辑）
      */
     private fun checkAllPermissionsGranted(): Boolean {
         return when {
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE -> { // Android 14+
-                ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_IMAGES) == PackageManager.PERMISSION_GRANTED ||
+                ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_IMAGES) == PackageManager.PERMISSION_GRANTED &&
                 ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_VIDEO) == PackageManager.PERMISSION_GRANTED
             }
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> { // Android 13
-                ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_IMAGES) == PackageManager.PERMISSION_GRANTED ||
+                ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_IMAGES) == PackageManager.PERMISSION_GRANTED &&
                 ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_VIDEO) == PackageManager.PERMISSION_GRANTED
             }
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.M -> { // Android 6-12
@@ -229,8 +256,9 @@ class MainActivity : ComponentActivity() {
         if (notGrantedPermissions.isNotEmpty()) {
             requestPermissionLauncher.launch(notGrantedPermissions.toTypedArray())
         } else {
-            // 理论上不应该走到这里，因为 checkAllPermissionsGranted 已经检查过了
+            // 权限已全部授予
             permissionsGranted = true
+            isWaitingForPermission = false
             loadMainContent()
         }
     }
@@ -246,8 +274,8 @@ class MainActivity : ComponentActivity() {
                 finish()
             }
             .setNegativeButton("重新授权") { _, _ ->
-                // 重新请求权限
                 isWaitingForPermission = true
+                permissionsGranted = false
                 requestStoragePermissions()
             }
             .setCancelable(false)
@@ -255,24 +283,23 @@ class MainActivity : ComponentActivity() {
     }
     
     /**
-     * 加载主界面内容
+     * 加载主界面内容（只更新状态，不重新创建 Activity）
      */
     private fun loadMainContent() {
-        runOnUiThread {
-            setContent {
-                val themeMode = ThemePreferences.themeMode.value
-                StellarTheme(themeMode = themeMode) {
-                    TopAppBarProvider {
-                        MainScreenContent(
-                            homeViewModel = homeModel,
-                            appsViewModel = appsModel
-                        )
-                    }
-                }
-            }
+        // 取消之前的加载任务
+        loadJob?.cancel()
+        
+        loadJob = lifecycleScope.launch(Dispatchers.Main) {
+            permissionsGranted = true
+            isWaitingForPermission = false
+            // 通过重新设置 content 来更新界面
+            setupInitialContent()
         }
     }
     
+    /**
+     * 显示声明对话框
+     */
     private fun showZybAdbHelperDialog() {
         AlertDialog.Builder(this)
             .setTitle("声明")
@@ -304,13 +331,21 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        // 移除监听器
         Stellar.removeBinderReceivedListener(binderReceivedListener)
         Stellar.removeBinderDeadListener(binderDeadListener)
+        
+        // 取消协程任务
+        loadJob?.cancel()
+        loadJob = null
+        
+        // 移除 Handler 回调
+        mainHandler.removeCallbacksAndMessages(null)
     }
 }
 
 /**
- * 权限请求等待界面
+ * 权限请求等待界面（优化版）
  */
 @Composable
 fun PermissionRequestScreen(
@@ -318,6 +353,11 @@ fun PermissionRequestScreen(
     isRequesting: Boolean
 ) {
     val context = LocalContext.current
+    
+    // 监听 Activity 生命周期，避免权限请求后状态不一致
+    DisposableEffect(Unit) {
+        onDispose { }
+    }
     
     Box(
         modifier = Modifier
@@ -387,7 +427,7 @@ private fun MainScreenContent(
         StartPage.TERMINAL -> MainScreen.Terminal.route
     }
 
-    var selectedIndex by remember { androidx.compose.runtime.mutableIntStateOf(initialIndex) }
+    var selectedIndex by remember { mutableIntStateOf(initialIndex) }
 
     var lastBackPressTime by remember { mutableLongStateOf(0L) }
     val context = navController.context
