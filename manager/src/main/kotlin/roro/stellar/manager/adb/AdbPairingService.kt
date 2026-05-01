@@ -25,8 +25,8 @@ import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.core.content.edit
 import androidx.lifecycle.Observer
-import com.cfks.utils.ScreenCaptureHelper
 import com.cfks.utils.TesseractHelper
+import com.cfks.utils.PairingCodeRectHelper
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
@@ -424,19 +424,18 @@ class AdbPairingService : Service() {
                 Log.d(tag, "截图尺寸: ${fullBitmap.width}x${fullBitmap.height}")
 
                 // 3. 获取裁剪区域
-                val captureRect = try {
-                    ScreenCaptureHelper.getAdaptedCaptureRect()
-                } catch (e: Exception) {
-                    Log.e(tag, "获取裁剪区域失败", e)
-                    fullBitmap.recycle()
-                    showNotification("❌ 裁剪失败", "获取裁剪区域失败")
-                    return@launch
-                }
+                val captureRect = PairingCodeRectHelper.rect
+				if (captureRect == null) {
+				    Log.e(tag, "获取裁剪区域失败: rect is null")
+				    fullBitmap.recycle()
+				    showNotification("❌ 裁剪失败", "获取裁剪区域失败")
+				    return@launch
+				}
                 Log.d(tag, "裁剪区域: ${captureRect.toShortString()}")
 
                 // 4. 裁剪 Bitmap
                 val croppedBitmap = try {
-                    ScreenCaptureHelper.cropBitmap(fullBitmap, captureRect)
+                    PairingCodeRectHelper.cropBitmap(fullBitmap, captureRect)
                 } catch (e: Exception) {
                     Log.e(tag, "裁剪失败", e)
                     fullBitmap.recycle()
