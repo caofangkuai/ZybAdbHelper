@@ -56,7 +56,7 @@ jobs:
           ${{ runner.os }}-gradle-
           
     - name: 构建 Manager Debug APK
-      run: ./gradlew :manager:assembleDebug --stacktrace --no-daemon -Dorg.gradle.jvmargs=-Xmx2048m
+      run: ./gradlew :manager:assembleDebug --stacktrace --info --no-daemon -Dorg.gradle.jvmargs=-Xmx2048m
       
     - name: 运行单元测试
       run: ./gradlew :manager:testDebugUnitTest --stacktrace --no-daemon
