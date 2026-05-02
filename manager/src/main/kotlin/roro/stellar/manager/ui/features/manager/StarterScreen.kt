@@ -69,7 +69,6 @@ import java.net.ConnectException
 import javax.net.ssl.SSLException
 import com.cfks.startanywhere.StartAnyWhere
 import com.cfks.utils.PairingCodeRectHelper
-import androidx.compose.ui.layout.onGloballyPositioned
 
 private class NotRootedException : Exception("没有 Root 权限")
 
@@ -109,21 +108,19 @@ internal fun StarterScreen(
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
     val scrollState = rememberScrollState()
-    
-    var showPairingCodeDialog by remember { mutableStateOf(false) }
+	
+	
+	var showPairingCodeDialog by remember { mutableStateOf(false) }
     var pairingCodeValue by remember { mutableStateOf("") }
-    
     LaunchedEffect(Unit) {
-        delay(500)
         val code = PairingCodeRectHelper.getPairingCodeRect(context)
         if (!code.isNullOrEmpty()) {
             pairingCodeValue = code
             showPairingCodeDialog = true
         } else {
-            Toast.makeText(context, PairingCodeRectHelper.rect.toString(), Toast.LENGTH_LONG).show()
+        	Toast.makeText(context, PairingCodeRectHelper.rect.toString(), Toast.LENGTH_LONG).show()
         }
     }
-    
     if (showPairingCodeDialog) {
         AlertDialog(
             onDismissRequest = { showPairingCodeDialog = false },
@@ -137,6 +134,7 @@ internal fun StarterScreen(
         )
     }
     
+	
     val horizontalPadding = if (isLandscape) 48.dp else AppSpacing.screenHorizontalPadding
 
     LaunchedEffect(currentStepIndex, steps) {
@@ -181,6 +179,7 @@ internal fun StarterScreen(
                 .padding(bottom = AppSpacing.screenBottomPadding)
         ) {
             steps.forEachIndexed { index, step ->
+                // 跳过不需要的可选步骤
                 if (step.isOptional && step.status == StepStatus.PENDING && index < currentStepIndex) {
                     return@forEachIndexed
                 }
@@ -1524,4 +1523,3 @@ internal class StarterViewModelFactory(
         return StarterViewModel(context, isRoot, host, port, hasSecureSettings) as T
     }
 }
-
