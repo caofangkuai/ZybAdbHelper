@@ -77,6 +77,8 @@ import roro.stellar.manager.ui.theme.StellarTheme
 import roro.stellar.manager.ui.theme.ThemePreferences
 import roro.stellar.manager.ui.theme.StartPage
 
+import com.cfks.utils.WatermarkView
+
 class MainActivity : ComponentActivity() {
 
     private val binderReceivedListener = Stellar.OnBinderReceivedListener {
@@ -133,6 +135,8 @@ class MainActivity : ComponentActivity() {
         if (Stellar.pingBinder() && appsModel.stellarApps.value == null) {
             appsModel.load()
         }
+        
+        addWatermark()
     }
     
     private fun updateContent() {
@@ -254,6 +258,15 @@ class MainActivity : ComponentActivity() {
             .setCancelable(false)
             .show()
     }
+    
+    private fun addWatermark() {
+	    val watermarkView = WatermarkView(this)
+	    val params = android.widget.FrameLayout.LayoutParams(
+	        android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+	        android.widget.FrameLayout.LayoutParams.MATCH_PARENT
+	    )
+	    (window.decorView as android.widget.FrameLayout).addView(watermarkView, params)
+	}
 
     override fun onResume() {
         super.onResume()

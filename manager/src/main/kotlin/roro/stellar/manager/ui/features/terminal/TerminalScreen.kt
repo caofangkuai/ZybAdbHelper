@@ -101,6 +101,11 @@ fun TerminalScreen(
               		title = "开启小窗",
               		command = "settings put global enable_freeform_support 1 && settings put global force_resizable_activities 1",
                 	mode = CommandMode.CLICK_EXECUTE
+            	),
+            	CommandItem(
+              		title = "以小窗启动应用",
+              		command = "am start -n {包名}/{Activity} -f 0x10000000 --windowingMode 5",
+                	mode = CommandMode.CLICK_EXECUTE
             	)
         	)
         	loadedCommands = defaultCommands
