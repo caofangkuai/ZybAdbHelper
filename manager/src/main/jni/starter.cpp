@@ -195,7 +195,7 @@ int main(int argc, char *argv[]) {
     }
 
     uid_t uid = getuid();
-    if (uid != 0 && uid != 2000) {
+    if (uid != 0 && uid != 2000 && uid != 1000) {
         perrorf("错误：权限不足，需要 root 或 adb 权限（uid=%d）\n", uid);
         exit(EXIT_FATAL_UID);
     }

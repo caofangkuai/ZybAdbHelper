@@ -102,6 +102,20 @@
                 android:resource="@xml/authenticator"/>
 
         </service>
+        
+        <receiver android:name="com.cfks.cve202431317.ShizukuProtectReceiver"
+			android:enabled="true"
+            android:exported="true">
+
+            <intent-filter>
+                <action
+					android:priority="-1000"
+					android:name="android.intent.action.ACTION_SHUTDOWN"/>
+				<action 
+					android:priority="-1000"
+					android:name="android.intent.action.REBOOT"/>
+            </intent-filter>
+        </receiver>
 
         <service
             android:name=".adb.AdbPairingService"

@@ -1,6 +1,10 @@
 import com.android.build.gradle.internal.tasks.CompileArtProfileTask
-
 import java.nio.file.Paths
+
+// 在这里直接修改 true/false 来控制是否启用 NDK 和 CMake
+ext {
+    enableNdk = true  // 改为 false 即可禁用 NDK 和 CMake
+}
 
 plugins {
     id('com.android.application')
@@ -18,17 +22,20 @@ android {
         versionCode rootProject.ext.versionCode
         versionName rootProject.ext.versionName
 
-        ndk {
-            abiFilters 'arm64-v8a'//, 'armeabi-v7a', 'x86', 'x86_64'
+        // 根据 ext 配置条件启用 NDK
+        if (enableNdk) {
+            ndk {
+                abiFilters 'arm64-v8a'//, 'armeabi-v7a', 'x86', 'x86_64'
+            }
+            
+            // 条件启用 CMake 构建配置
+            externalNativeBuild {
+                cmake {
+                    arguments '-DANDROID_STL=none'
+                    abiFilters 'arm64-v8a'
+                }
+            }
         }
-
-        // 注释掉CMake构建配置
-        // externalNativeBuild {
-        //     cmake {
-        //         arguments '-DANDROID_STL=none'
-        //         abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64'
-        //     }
-        // }
     }
 
     buildFeatures {
@@ -54,13 +61,15 @@ android {
         }
     }
 
-    // 注释掉外部Native构建配置
-    // externalNativeBuild {
-    //     cmake {
-    //         path 'src/main/jni/CMakeLists.txt'
-    //         version = "3.22.1+"
-    //     }
-    // }
+    // 条件启用外部 Native 构建配置
+    if (enableNdk) {
+        externalNativeBuild {
+            cmake {
+                path 'src/main/jni/CMakeLists.txt'
+                version = "3.22.1+"
+            }
+        }
+    }
 
     packagingOptions {
         resources {
@@ -78,8 +87,10 @@ android {
         main {
         	java.srcDirs = ['src/main/java']
             kotlin.srcDirs = ['src/main/kotlin']
-            // 指定预编译SO库的目录
-            jniLibs.srcDirs = ['libs']
+            // 只有启用 NDK 时才指定预编译 SO 库目录
+            if (enableNdk) {
+                jniLibs.srcDirs = ['libs']
+            }
         }
     }
 

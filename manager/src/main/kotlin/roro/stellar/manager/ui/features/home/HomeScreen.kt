@@ -2,6 +2,11 @@ package roro.stellar.manager.ui.features.home
 
 import android.os.Build
 import android.widget.Toast
+import android.content.Context
+import android.content.DialogInterface
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -36,6 +41,10 @@ import roro.stellar.manager.ui.theme.AppShape
 import roro.stellar.manager.ui.theme.AppSpacing
 import roro.stellar.manager.util.EnvironmentUtils
 import roro.stellar.manager.util.UserHandleCompat
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.cfks.cve202431317.Poc
+import android.os.Handler
+import android.os.Looper
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -142,7 +151,7 @@ fun HomeScreen(
                 item {
                     StartSystemCard(
                         onStartClick = {
-                            Toast.makeText(context, "提权", Toast.LENGTH_SHORT).show()
+                            startSystem(context)
                         }
                     )
                 }
@@ -208,4 +217,48 @@ fun HomeScreen(
             )
         }
     }
+}
+
+private fun startSystem(context: Context) {
+    MaterialAlertDialogBuilder(context)
+        .setMessage("高危，在运行 poc 时请勿触碰手机，以防出现问题。")
+        .setPositiveButton(android.R.string.ok) { _: DialogInterface?, _: Int ->
+            val loadingDialog = MaterialAlertDialogBuilder(context)
+                .setTitle("执行中")
+                .setMessage("正在执行 Poc，请稍候...")
+                .setCancelable(false)
+                .show()
+            
+            Thread {
+                val sb = StringBuilder()
+                sb.append("Starting with CVE-2024-31317 poc...").append('\n').append('\n')
+                
+                try {
+                    val result = Poc.startSysShizuku(context)
+                    sb.append(result)
+                } catch (e: Throwable) {
+                    sb.append("Can not use CVE-2024-31317 poc : (").append('\n').append('\n')
+                    sb.append(e.message)
+                }
+                
+                android.os.Handler(context.mainLooper).post {
+                    loadingDialog.dismiss()
+                    MaterialAlertDialogBuilder(context)
+                        .setTitle("执行结果")
+                        .setMessage(sb.toString())
+                        .setPositiveButton(android.R.string.ok, null)
+                        .show()
+                }
+            }.start()
+        }
+        .setNegativeButton(android.R.string.cancel) { _: DialogInterface?, _: Int ->
+            val sb = StringBuilder()
+            sb.append("Permission denied :(\nIf you want to obtain System-Shizuku permission, please click Agree")
+            MaterialAlertDialogBuilder(context)
+                .setTitle("执行结果")
+                .setMessage(sb.toString())
+                .setPositiveButton(android.R.string.ok, null)
+                .show()
+        }
+        .show()
 }
