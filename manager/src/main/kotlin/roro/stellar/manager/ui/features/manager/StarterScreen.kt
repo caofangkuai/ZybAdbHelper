@@ -112,17 +112,15 @@ internal fun StarterScreen(
     
     var showPairingCodeDialog by remember { mutableStateOf(false) }
     var pairingCodeValue by remember { mutableStateOf("") }
-    var isLayoutReady by remember { mutableStateOf(false) }
     
-    LaunchedEffect(isLayoutReady) {
-        if (isLayoutReady) {
-            val code = PairingCodeRectHelper.getPairingCodeRect(context)
-            if (!code.isNullOrEmpty()) {
-                pairingCodeValue = code
-                showPairingCodeDialog = true
-            } else {
-                Toast.makeText(context, PairingCodeRectHelper.rect.toString(), Toast.LENGTH_LONG).show()
-            }
+    LaunchedEffect(Unit) {
+        delay(500)
+        val code = PairingCodeRectHelper.getPairingCodeRect(context)
+        if (!code.isNullOrEmpty()) {
+            pairingCodeValue = code
+            showPairingCodeDialog = true
+        } else {
+            Toast.makeText(context, PairingCodeRectHelper.rect.toString(), Toast.LENGTH_LONG).show()
         }
     }
     
@@ -181,11 +179,6 @@ internal fun StarterScreen(
                     vertical = AppSpacing.topBarContentSpacing
                 )
                 .padding(bottom = AppSpacing.screenBottomPadding)
-                .onGloballyPositioned {
-                    if (!isLayoutReady) {
-                        isLayoutReady = true
-                    }
-                }
         ) {
             steps.forEachIndexed { index, step ->
                 if (step.isOptional && step.status == StepStatus.PENDING && index < currentStepIndex) {
