@@ -8,40 +8,59 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.TextView;
 import android.util.Log;
+
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+
 import roro.stellar.manager.R;
 
 public class PairingCodeRectHelper {
 	public static Rect rect = new Rect();
 
     public static String getPairingCodeRect(Context context) {
-        AlertDialog dialog = createMockDialog(context);
-        dialog.show();
-        
-        Rect rect = new Rect();
-        try {
-            View sixDigitLayout = dialog.findViewById(R.id.l_pairing_six_digit);
-            if (sixDigitLayout != null && sixDigitLayout.getVisibility() == View.VISIBLE) {
-                TextView codeView = sixDigitLayout.findViewById(R.id.pairing_code);
-                if (codeView != null) {
-                    int[] location = new int[2];
-                    codeView.getLocationOnScreen(location);
-                    rect.left = location[0];
-                    rect.top = location[1];
-                    rect.right = location[0] + codeView.getWidth();
-                    rect.bottom = location[1] + codeView.getHeight();
-                }
-            }
-        } catch (Exception e) {
-            rect.setEmpty();
-            return Log.getStackTraceString(e);
-        } finally {
-            dialog.dismiss();
-        }
-        
-        PairingCodeRectHelper.rect = rect;
-        
-        return "";
-    }
+	    AlertDialog dialog = createMockDialog(context);
+	    dialog.show();
+	    
+	    final String[] errorMsg = new String[1];
+	    final CountDownLatch latch = new CountDownLatch(1);
+	    
+	    View sixDigitLayout = dialog.findViewById(R.id.l_pairing_six_digit);
+	    if (sixDigitLayout != null) {
+	        sixDigitLayout.post(() -> {
+	            try {
+	                TextView codeView = sixDigitLayout.findViewById(R.id.pairing_code);
+	                if (codeView != null) {
+	                    int[] location = new int[2];
+	                    codeView.getLocationOnScreen(location);
+	                    rect.left = location[0];
+	                    rect.top = location[1];
+	                    rect.right = location[0] + codeView.getWidth();
+	                    rect.bottom = location[1] + codeView.getHeight();
+	                    errorMsg[0] = ""; // 成功时返回空字符串
+	                } else {
+	                    errorMsg[0] = "未找到配对码 TextView";
+	                }
+	            } catch (Exception e) {
+	                errorMsg[0] = Log.getStackTraceString(e);
+	            } finally {
+	                latch.countDown();
+	                dialog.dismiss();
+	            }
+	        });
+	    } else {
+	        errorMsg[0] = "未找到 six digit layout";
+	        latch.countDown();
+	        dialog.dismiss();
+	    }
+	    
+	    try {
+	        latch.await(1000, TimeUnit.MILLISECONDS);
+	    } catch (InterruptedException e) {
+	        return Log.getStackTraceString(e);
+	    }
+	    
+	    return errorMsg[0] != null ? errorMsg[0] : "";
+	}
     
     private static AlertDialog createMockDialog(Context context) {
         View dialogView = LayoutInflater.from(context).inflate(R.layout.adb_wireless_dialog, null);
