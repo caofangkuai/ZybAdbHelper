@@ -1,11 +1,6 @@
 import com.android.build.gradle.internal.tasks.CompileArtProfileTask
 import java.nio.file.Paths
 
-// 在这里直接修改 true/false 来控制是否启用 NDK 和 CMake
-ext {
-    enableNdk = true  // 改为 false 即可禁用 NDK 和 CMake
-}
-
 plugins {
     id('com.android.application')
     id('org.jetbrains.kotlin.android')
@@ -13,6 +8,11 @@ plugins {
     id('com.google.devtools.ksp')
     id('dev.rikka.tools.refine')
     id('dev.rikka.tools.autoresconfig')
+}
+
+// 在这里直接修改 true/false 来控制是否启用 NDK 和 CMake
+ext {
+    enableNdk = true  // 改为 false 即可禁用 NDK 和 CMake
 }
 
 android {
