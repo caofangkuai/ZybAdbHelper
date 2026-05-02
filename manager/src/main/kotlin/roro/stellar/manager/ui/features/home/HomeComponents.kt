@@ -74,7 +74,7 @@ fun ServerStatusCard(
     ModernStatusCard(
         icon = if (isRunning) Icons.Default.CheckCircle else Icons.Default.Error,
         title = stringResource(R.string.service_status),
-        subtitle = if (isRunning) "${stringResource(R.string.service_running)} ${Poc.getNameByUid(uid ?: -1)}" else stringResource(R.string.service_not_running),
+        subtitle = if (isRunning) "${stringResource(R.string.service_running)} ${Poc.getNameByUid(uid)}" else stringResource(R.string.service_not_running),
         statusText = "",
         isPositive = isRunning,
         action = if (isRunning) {
