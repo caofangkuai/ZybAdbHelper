@@ -117,6 +117,8 @@ internal fun StarterScreen(
         if (!code.isNullOrEmpty()) {
             pairingCodeValue = code
             showPairingCodeDialog = true
+        } else {
+        	Toast.makeText(context, PairingCodeRectHelper.rect.toString(), Toast.LENGTH_LONG).show()
         }
     }
     if (showPairingCodeDialog) {
