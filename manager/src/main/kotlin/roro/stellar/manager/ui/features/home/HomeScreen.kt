@@ -89,6 +89,7 @@ fun HomeScreen(
                 ServerStatusCard(
                     isRunning = isRunning,
                     isRoot = isRoot,
+                    uid = serviceStatus?.uid,
                     apiVersion = serviceStatus?.apiVersion ?: 0,
                     onStopClick = { showPowerDialog = true }
                 )

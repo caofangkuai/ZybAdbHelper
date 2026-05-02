@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Wifi
+import androidx.compose.material.icons.filled.AdminPanelSettings
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -63,6 +64,7 @@ import java.time.format.DateTimeParseException
 fun ServerStatusCard(
     isRunning: Boolean,
     isRoot: Boolean,
+    uid: Int,
     apiVersion: Int,
     onStopClick: () -> Unit
 ) {
@@ -71,7 +73,7 @@ fun ServerStatusCard(
     ModernStatusCard(
         icon = if (isRunning) Icons.Default.CheckCircle else Icons.Default.Error,
         title = stringResource(R.string.service_status),
-        subtitle = if (isRunning) stringResource(R.string.service_running) else stringResource(R.string.service_not_running),
+        subtitle = if (isRunning) "${stringResource(R.string.service_running)}(UID $uid)" else stringResource(R.string.service_not_running),
         statusText = "",
         isPositive = isRunning,
         action = if (isRunning) {
@@ -383,7 +385,7 @@ fun StartRootCard(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Default.Security,
+                    imageVector = Icons.Default.AdminPanelSettings,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(24.dp)
