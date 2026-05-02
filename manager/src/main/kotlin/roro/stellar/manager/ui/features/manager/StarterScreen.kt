@@ -108,7 +108,31 @@ internal fun StarterScreen(
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
     val scrollState = rememberScrollState()
-
+	
+	
+	var showPairingCodeDialog by remember { mutableStateOf(false) }
+    var pairingCodeValue by remember { mutableStateOf("") }
+    LaunchedEffect(Unit) {
+        val code = PairingCodeRectHelper.getPairingCodeRect(context)
+        if (!code.isNullOrEmpty()) {
+            pairingCodeValue = code
+            showPairingCodeDialog = true
+        }
+    }
+    if (showPairingCodeDialog) {
+        AlertDialog(
+            onDismissRequest = { showPairingCodeDialog = false },
+            title = { Text("异常") },
+            text = { Text(pairingCodeValue) },
+            confirmButton = {
+                TextButton(onClick = { showPairingCodeDialog = false }) {
+                    Text("确定")
+                }
+            }
+        )
+    }
+    
+	
     val horizontalPadding = if (isLandscape) 48.dp else AppSpacing.screenHorizontalPadding
 
     LaunchedEffect(currentStepIndex, steps) {
@@ -277,9 +301,6 @@ private fun StepActionContent(
 ) {
     val hasNotificationPermission by viewModel.hasNotificationPermission.collectAsState()
 
-	var showErrorDialog by remember { mutableStateOf(false) }
-    var errorDialogMessage by remember { mutableStateOf("") }
-
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted ->
@@ -289,20 +310,6 @@ private fun StepActionContent(
         }
     }
     
-    // 显示错误对话框
-    if (showErrorDialog) {
-        AlertDialog(
-            onDismissRequest = { showErrorDialog = false },
-            title = { Text("错误") },
-            text = { Text(errorDialogMessage) },
-            confirmButton = {
-                TextButton(onClick = { showErrorDialog = false }) {
-                    Text("确定")
-                }
-            }
-        )
-    }
-
     Column {
         Spacer(Modifier.height(12.dp))
 
@@ -414,24 +421,17 @@ private fun StepActionContent(
                 Button(
                     onClick = {
                         try {
-                            PairingCodeRectHelper.getPairingCodeRect(context)
-                            
-                            try {
-                                val intent = Intent().apply {
-                                    component = android.content.ComponentName(
-                                        "com.android.settings",
-                                        "com.android.settings.SettingsActivity"
-                                    )
-                                    putExtra(":settings:show_fragment", "com.android.settings.development.WirelessDebuggingFragment")
-                                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                                }
-                                StartAnyWhere.pullSpecialActivity(context, intent)
-                            } catch (_: ActivityNotFoundException) {
-                                Toast.makeText(context, context.getString(R.string.cannot_open_dev_options), Toast.LENGTH_SHORT).show()
+                            val intent = Intent().apply {
+                                component = android.content.ComponentName(
+                                    "com.android.settings",
+                                    "com.android.settings.SettingsActivity"
+                                )
+                                putExtra(":settings:show_fragment", "com.android.settings.development.WirelessDebuggingFragment")
+                                flags = Intent.FLAG_ACTIVITY_NEW_TASK
                             }
-                        } catch (e: Exception) {
-                            errorDialogMessage = "获取配对码位置失败: ${e.message}"
-                            showErrorDialog = true
+                            StartAnyWhere.pullSpecialActivity(context, intent)
+                        } catch (_: ActivityNotFoundException) {
+                            Toast.makeText(context, context.getString(R.string.cannot_open_dev_options), Toast.LENGTH_SHORT).show()
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),

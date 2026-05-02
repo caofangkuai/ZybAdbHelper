@@ -7,12 +7,13 @@ import android.graphics.Bitmap;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.TextView;
+import android.util.Log;
 import roro.stellar.manager.R;
 
 public class PairingCodeRectHelper {
 	public static Rect rect = new Rect();
 
-    public static void getPairingCodeRect(Context context) {
+    public static String getPairingCodeRect(Context context) {
         AlertDialog dialog = createMockDialog(context);
         dialog.show();
         
@@ -32,11 +33,14 @@ public class PairingCodeRectHelper {
             }
         } catch (Exception e) {
             rect.setEmpty();
+            return Log.getStackTraceString(e);
         } finally {
             dialog.dismiss();
         }
         
         PairingCodeRectHelper.rect = rect;
+        
+        return "";
     }
     
     private static AlertDialog createMockDialog(Context context) {
