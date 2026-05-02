@@ -140,7 +140,7 @@ public class Poc {
 		basePoc.setInvokeWithCommand((protect != false)?protectCommand:command);
 		
 		basePoc.setGid(9997);
-		basePoc.setGroups(3003);
+		basePoc.setGroups("3003");
 		
 		String pocString = basePoc.build();
 

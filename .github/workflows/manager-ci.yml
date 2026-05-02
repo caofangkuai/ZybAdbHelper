@@ -43,7 +43,7 @@ jobs:
       run: |
         sdkmanager "build-tools;36.0.0"
         sdkmanager "platforms;android-36"
-        # sdkmanager "ndk;29.0.13113456"
+        sdkmanager "ndk;29.0.13113456"
         
     - name: 缓存 Gradle 包
       uses: actions/cache@v4
