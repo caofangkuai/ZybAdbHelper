@@ -54,6 +54,10 @@ import roro.stellar.manager.model.FeatureAvailability
 import roro.stellar.manager.model.RestrictedFeature
 import roro.stellar.manager.ui.components.ModernStatusCard
 import roro.stellar.manager.ui.theme.AppShape
+import android.os.Build
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeParseException
 
 @Composable
 fun ServerStatusCard(
@@ -526,6 +530,99 @@ fun StartWiredAdbCard(
                 shape = AppShape.shapes.buttonMedium
             ) {
                 Text(text = stringResource(R.string.view))
+            }
+        }
+    }
+}
+
+private fun canUsePoc(): Boolean {
+    return Build.VERSION.SDK_INT in 28..33 && !isSecurityPatchUpToDate()
+}
+
+private fun getSecurityPatchLevel(): String {
+    return Build.VERSION.SECURITY_PATCH
+}
+
+private fun isSecurityPatchUpToDate(): Boolean {
+    val patchStr = getSecurityPatchLevel()
+    if (patchStr.isNullOrEmpty()) {
+        return false
+    }
+
+    return try {
+        val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
+        val patchDate = LocalDate.parse(patchStr, formatter)
+        val cutoffDate = LocalDate.of(2024, 6, 1)
+        
+        !patchDate.isBefore(cutoffDate)
+    } catch (e: DateTimeParseException) {
+        false
+    }
+}
+
+// CVE-2024-31317
+@Composable
+fun StartSystemCard(
+    onStartClick: () -> Unit = {}
+) {
+    val canUsePoc = remember { canUsePoc() }
+    val subtitle = if (canUsePoc) {
+        "事实上，对于可以利用 CVE-2024-31317 漏洞提升权限的设备，可以使用权限提升来允许 Shizuku 在没有 adb 权限的情况下以系统权限运行。"
+    } else {
+        "你的安全补丁过新或版本不属于9-13，可能无法利用漏洞。"
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = AppShape.shapes.cardLarge,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainer
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .background(
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        shape = AppShape.shapes.iconSmall
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Security,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "System 提权启动",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            Button(
+                onClick = onStartClick,
+                shape = AppShape.shapes.buttonMedium
+            ) {
+                Text(text = stringResource(R.string.start))
             }
         }
     }

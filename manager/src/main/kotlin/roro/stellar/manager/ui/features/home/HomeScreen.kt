@@ -137,6 +137,14 @@ fun HomeScreen(
                         )
                     }
                 }
+                
+                item {
+                    StartSystemCard(
+                        onStartClick = {
+                            Toast.makeText(context, "提权", Toast.LENGTH_SHORT).show()
+                        }
+                    )
+                }
             }
         }
     }
