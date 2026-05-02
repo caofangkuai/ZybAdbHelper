@@ -1,5 +1,6 @@
 package roro.stellar.manager
 
+import android.content.Context
 import android.content.res.Configuration
 import android.Manifest
 import android.content.Intent
@@ -242,22 +243,23 @@ class MainActivity : ComponentActivity() {
     }
     
     private fun showZybAdbHelperDialog() {
-    	if (hasShownDialog) return
-    	hasShownDialog = true
-    
-        AlertDialog.Builder(this)
-            .setTitle("声明")
-            .setMessage("ZybAdbHelper 由 caofangkuai 开发，基于 Stellar，为 ZybOS 进行了深度定制")
-            .setPositiveButton("确定") { dialog, _ ->
-                dialog.dismiss()
-            }
-            .setNeutralButton("开源地址") { _, _ ->
-                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/caofangkuai/ZybAdbHelper/"))
-                startActivity(intent)
-            }
-            .setCancelable(false)
-            .show()
-    }
+	    val prefs = getSharedPreferences("app_prefs", MODE_PRIVATE)
+	    if (prefs.getBoolean("declaration_agreed", false)) return
+	
+	    AlertDialog.Builder(this)
+	        .setTitle("声明")
+	        .setMessage("ZybAdbHelper 由 caofangkuai 开发，基于 Stellar，为 ZybOS 进行了深度定制")
+	        .setPositiveButton("确定") { dialog, _ ->
+	            prefs.edit().putBoolean("declaration_agreed", true).apply()
+	            dialog.dismiss()
+	        }
+	        .setNeutralButton("开源地址") { _, _ ->
+	            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/caofangkuai/ZybAdbHelper/"))
+	            startActivity(intent)
+	        }
+	        .setCancelable(false)
+	        .show()
+	}
     
     private fun addWatermark() {
 	    val watermarkView = WatermarkView(this)
