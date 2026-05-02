@@ -59,6 +59,7 @@ import android.os.Build
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
+import com.cfks.cve202431317.Poc
 
 @Composable
 fun ServerStatusCard(
@@ -73,7 +74,7 @@ fun ServerStatusCard(
     ModernStatusCard(
         icon = if (isRunning) Icons.Default.CheckCircle else Icons.Default.Error,
         title = stringResource(R.string.service_status),
-        subtitle = if (isRunning) "${stringResource(R.string.service_running)}(UID $uid)" else stringResource(R.string.service_not_running),
+        subtitle = if (isRunning) "${stringResource(R.string.service_running)} ${Poc.getNameByUid(uid ?: -1)}" else stringResource(R.string.service_not_running),
         statusText = "",
         isPositive = isRunning,
         action = if (isRunning) {
@@ -537,37 +538,12 @@ fun StartWiredAdbCard(
     }
 }
 
-private fun canUsePoc(): Boolean {
-    return Build.VERSION.SDK_INT in 28..33 && !isSecurityPatchUpToDate()
-}
-
-private fun getSecurityPatchLevel(): String {
-    return Build.VERSION.SECURITY_PATCH
-}
-
-private fun isSecurityPatchUpToDate(): Boolean {
-    val patchStr = getSecurityPatchLevel()
-    if (patchStr.isNullOrEmpty()) {
-        return false
-    }
-
-    return try {
-        val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
-        val patchDate = LocalDate.parse(patchStr, formatter)
-        val cutoffDate = LocalDate.of(2024, 6, 1)
-        
-        !patchDate.isBefore(cutoffDate)
-    } catch (e: DateTimeParseException) {
-        false
-    }
-}
-
 // CVE-2024-31317
 @Composable
 fun StartSystemCard(
     onStartClick: () -> Unit = {}
 ) {
-    val canUsePoc = remember { canUsePoc() }
+    val canUsePoc = remember { Poc.canUsePoc() }
     val subtitle = if (canUsePoc) {
         "事实上，对于可以利用 CVE-2024-31317 漏洞提升权限的设备，可以使用权限提升来允许 Shizuku 在没有 adb 权限的情况下以系统权限运行。"
     } else {
