@@ -12,7 +12,7 @@ plugins {
 
 // 在这里直接修改 true/false 来控制是否启用 NDK 和 CMake
 ext {
-    enableNdk = true  // 改为 false 即可禁用 NDK 和 CMake
+    enableNdk = false  // 改为 false 即可禁用 NDK 和 CMake
 }
 
 android {
@@ -21,13 +21,13 @@ android {
         applicationId "roro.stellar.manager"
         versionCode rootProject.ext.versionCode
         versionName rootProject.ext.versionName
+        
+        ndk {
+            abiFilters 'arm64-v8a'//, 'armeabi-v7a', 'x86', 'x86_64'
+        }
 
         // 根据 ext 配置条件启用 NDK
         if (enableNdk) {
-            ndk {
-                abiFilters 'arm64-v8a'//, 'armeabi-v7a', 'x86', 'x86_64'
-            }
-            
             // 条件启用 CMake 构建配置
             externalNativeBuild {
                 cmake {
@@ -87,10 +87,7 @@ android {
         main {
         	java.srcDirs = ['src/main/java']
             kotlin.srcDirs = ['src/main/kotlin']
-            // 只有启用 NDK 时才指定预编译 SO 库目录
-            if (enableNdk) {
-                jniLibs.srcDirs = ['libs']
-            }
+            jniLibs.srcDirs = ['libs']
         }
     }
 
@@ -196,7 +193,6 @@ dependencies {
     ksp managerLibs.roomCompiler
     implementation managerLibs.gson
     implementation managerLibs.workRuntimeKtx
-    
-    //implementation 'cz.adaptech.tesseract4android:tesseract4android:4.9.0'
+
     implementation 'com.github.adaptech-cz.Tesseract4Android:tesseract4android:4.8.0'
 }

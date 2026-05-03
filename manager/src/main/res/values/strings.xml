@@ -232,7 +232,7 @@
     <string name="already_paired">已配对</string>
     <string name="no_port_detected">未检测到可用端口</string>
     <string name="need_pairing">需要配对</string>
-    <string name="enable_wireless_debugging_hint">请在开发者选项中开启无线调试功能</string>
+    <string name="enable_wireless_debugging_hint">请在开发者选项中开启无线调试功能(点了没反应就是设备不支持)</string>
     <string name="notification_permission_granted">通知权限已授予</string>
     <string name="notification_permission_required">必须授予通知权限才能进行配对</string>
     <string name="pairing_instruction">在无线调试页面点击「使用配对码配对设备」，然后按 关机+音量下键 对配对码截图，ZybAdbHelper 将自动识别</string>
