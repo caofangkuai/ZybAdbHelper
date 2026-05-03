@@ -1,10 +1,6 @@
 package roro.stellar.manager.ui.features.terminal
 
-import android.app.Activity
-import android.app.AlertDialog
 import android.content.Context
-import android.content.pm.PackageManager
-import android.view.WindowManager
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CancellationException
@@ -17,8 +13,6 @@ import kotlinx.coroutines.launch
 import roro.stellar.Stellar
 import java.io.BufferedReader
 import java.io.InputStreamReader
-import java.lang.reflect.Method
-import java.util.regex.Pattern
 
 data class ExecutionResult(
     val command: String,
@@ -33,7 +27,16 @@ data class TerminalState(
     val currentOutput: String = "",
     val showResultDialog: Boolean = false,
     val result: ExecutionResult? = null,
-    val pendingCommand: String? = null
+    val pendingCall: PendingCall? = null
+)
+
+data class PendingCall(
+    val callId: String,
+    val functionName: String,
+    val fullMatch: String,
+    val originalCommand: String,
+    val resolvedPrefix: String,
+    val resolvedSuffix: String
 )
 
 class TerminalViewModel : ViewModel() {
@@ -43,173 +46,61 @@ class TerminalViewModel : ViewModel() {
 
     private var currentJob: Job? = null
     private var currentProcess: Process? = null
-    private var pendingCallback: ((String) -> Unit)? = null
-    private var currentDialog: AlertDialog? = null
 
-    private fun getContext(): Context? {
-        return try {
-            val activityThreadClass = Class.forName("android.app.ActivityThread")
-            val currentActivityThreadMethod = activityThreadClass.getMethod("currentActivityThread")
-            val currentActivityThread = currentActivityThreadMethod.invoke(null)
-            val getSystemContextMethod = activityThreadClass.getMethod("getSystemContext")
-            getSystemContextMethod.invoke(currentActivityThread) as? Context
-        } catch (e: Exception) {
-            null
+    private fun parseCallCommand(command: String): Pair<String?, PendingCall?> {
+        val callPattern = Regex("\\$\\{CALL:([a-zA-Z_][a-zA-Z0-9_]*)\\(\\)\\}")
+        val match = callPattern.find(command)
+        
+        if (match != null) {
+            val functionName = match.groupValues[1]
+            val fullMatch = match.value
+            val parts = command.split(fullMatch, limit = 2)
+            
+            return Pair(
+                null,
+                PendingCall(
+                    callId = System.currentTimeMillis().toString(),
+                    functionName = functionName,
+                    fullMatch = fullMatch,
+                    originalCommand = command,
+                    resolvedPrefix = parts[0],
+                    resolvedSuffix = if (parts.size > 1) parts[1] else ""
+                )
+            )
         }
-    }
-
-    private fun getCurrentActivity(): Activity? {
-        return try {
-            val activityThreadClass = Class.forName("android.app.ActivityThread")
-            val currentActivityThreadMethod = activityThreadClass.getMethod("currentActivityThread")
-            val currentActivityThread = currentActivityThreadMethod.invoke(null)
-            
-            val activitiesField = activityThreadClass.getDeclaredField("mActivities")
-            activitiesField.isAccessible = true
-            val activities = activitiesField.get(currentActivityThread) as HashMap<*, *>
-            
-            for (activityRecord in activities.values) {
-                val activityRecordClass = activityRecord?.javaClass ?: continue
-                val pausedField = activityRecordClass.getDeclaredField("paused")
-                pausedField.isAccessible = true
-                
-                if (!pausedField.getBoolean(activityRecord)) {
-                    val activityField = activityRecordClass.getDeclaredField("activity")
-                    activityField.isAccessible = true
-                    return activityField.get(activityRecord) as? Activity
-                }
-            }
-            
-            activities.values.firstOrNull()?.let {
-                val activityField = it.javaClass.getDeclaredField("activity")
-                activityField.isAccessible = true
-                activityField.get(it) as? Activity
-            }
-        } catch (e: Exception) {
-            null
-        }
+        
+        return Pair(command, null)
     }
 
     fun executeCommand(command: String) {
         if (command.isBlank() || _state.value.isRunning) return
         if (!Stellar.pingBinder()) return
+
+        val (resolvedCommand, pendingCall) = parseCallCommand(command)
         
-        val processedCommand = processCommandTemplate(command)
-        if (processedCommand != null) {
-            _state.value = _state.value.copy(pendingCommand = processedCommand)
+        if (pendingCall != null) {
+            _state.value = _state.value.copy(
+                pendingCall = pendingCall,
+                showResultDialog = true,
+                currentOutput = ""
+            )
             return
         }
+
+        val finalCommand = resolvedCommand ?: command
         
-        startExecution(processedCommand ?: command)
-    }
-    
-    private fun processCommandTemplate(command: String): String? {
-        val pattern = Pattern.compile("\\$\\{CALL:([^}]+)}")
-        val matcher = pattern.matcher(command)
-        
-        if (matcher.find()) {
-            val fullMatch = matcher.group()
-            val functionName = matcher.group(1)
-            
-            when {
-                functionName.startsWith("selectApp()") -> {
-                    pendingCallback = { result ->
-                        val finalCommand = command.replace(fullMatch, result)
-                        startExecution(finalCommand)
-                        pendingCallback = null
-                    }
-                    showAppListDialog(false)
-                    return null
-                }
-                functionName.startsWith("selectActivity()") -> {
-                    pendingCallback = { result ->
-                        val finalCommand = command.replace(fullMatch, result)
-                        startExecution(finalCommand)
-                        pendingCallback = null
-                    }
-                    showAppListDialog(true)
-                    return null
-                }
-            }
-        }
-        
-        return command
-    }
-    
-    private fun showAppListDialog(needActivity: Boolean) {
-        val context = getContext() ?: return
-        val apps = getInstalledApps(context)
-        val appNames = apps.keys.toTypedArray()
-        
-        currentDialog = AlertDialog.Builder(context)
-            .setTitle("选择应用")
-            .setItems(appNames) { _, which ->
-                val packageName = apps[appNames[which]]
-                if (packageName != null) {
-                    if (needActivity) {
-                        val mainActivity = getMainActivity(packageName)
-                        pendingCallback?.invoke("$packageName/$mainActivity")
-                    } else {
-                        pendingCallback?.invoke(packageName)
-                    }
-                } else {
-                    pendingCallback?.invoke("")
-                }
-                currentDialog = null
-            }
-            .setOnCancelListener {
-                if (pendingCallback != null) {
-                    pendingCallback?.invoke("")
-                    pendingCallback = null
-                }
-                currentDialog = null
-            }
-            .create()
-        
-        currentDialog?.show()
-    }
-    
-    private fun getInstalledApps(context: Context): MutableMap<String, String> {
-        val apps = mutableMapOf<String, String>()
-        try {
-            val pm = context.packageManager
-            val packages = pm.getInstalledApplications(PackageManager.GET_META_DATA)
-            for (app in packages) {
-                if (pm.getLaunchIntentForPackage(app.packageName) != null) {
-                    val appName = pm.getApplicationLabel(app).toString()
-                    apps[appName] = app.packageName
-                }
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-        return apps
-    }
-    
-    private fun getMainActivity(packageName: String): String {
-        return try {
-            val context = getContext() ?: return ""
-            val pm = context.packageManager
-            val launchIntent = pm.getLaunchIntentForPackage(packageName)
-            launchIntent?.component?.className ?: ""
-        } catch (e: Exception) {
-            ""
-        }
-    }
-    
-    private fun startExecution(command: String) {
         currentJob = viewModelScope.launch(Dispatchers.IO) {
             val startTime = System.currentTimeMillis()
             _state.value = _state.value.copy(
                 isRunning = true,
                 currentOutput = "",
                 showResultDialog = true,
-                pendingCommand = null
+                pendingCall = null
             )
 
             try {
                 val process = Stellar.newProcess(
-                    arrayOf("sh", "-c", command),
+                    arrayOf("sh", "-c", finalCommand),
                     null,
                     null
                 )
@@ -316,16 +207,23 @@ class TerminalViewModel : ViewModel() {
     }
 
     fun dismissDialog() {
-        currentDialog?.dismiss()
-        currentDialog = null
-        _state.value = _state.value.copy(showResultDialog = false, result = null, pendingCommand = null)
+        _state.value = _state.value.copy(showResultDialog = false, result = null, pendingCall = null)
     }
 
     fun cancelExecution() {
         currentJob?.cancel()
         currentProcess?.destroy()
         currentProcess = null
-        currentDialog?.dismiss()
-        currentDialog = null
+    }
+
+    fun continueWithResolvedCommand(resolvedCommand: String) {
+        _state.value = _state.value.copy(pendingCall = null)
+        executeCommand(resolvedCommand)
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        currentProcess?.destroy()
+        currentJob?.cancel()
     }
 }

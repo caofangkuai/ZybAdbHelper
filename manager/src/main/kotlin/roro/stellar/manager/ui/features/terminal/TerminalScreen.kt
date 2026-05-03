@@ -1,12 +1,17 @@
 package roro.stellar.manager.ui.features.terminal
 
+import android.content.pm.PackageManager
+import android.content.Intent
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
@@ -34,6 +39,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.viewmodel.compose.viewModel
 import roro.stellar.manager.R
 import roro.stellar.manager.db.AppDatabase
@@ -88,46 +95,46 @@ fun TerminalScreen(
     var commands by remember { mutableStateOf(emptyList<CommandItem>()) }
     val scope = rememberCoroutineScope()
 
-	LaunchedEffect(Unit) {
-    	var loadedCommands = loadCommands(context)
-    	if (loadedCommands.isEmpty()) {
-        	val defaultCommands = listOf(
-            	CommandItem(
-              		title = "禁用PadMs",
-              		command = "am force-stop com.zuoyebang.padms; pm clear com.zuoyebang.padms; pm disable-user com.zuoyebang.padms",
-                	mode = CommandMode.CLICK_EXECUTE
-            	),
-            	CommandItem(
-              		title = "无网保活ADB",
-              		command = "settings put global development_settings_enabled 1; settings put global adb_enabled 1; settings put secure debug_app roro.stellar.manager",
-                	mode = CommandMode.CLICK_EXECUTE
-            	),
-            	CommandItem(
-              		title = "开启小窗",
-              		command = "settings put global enable_freeform_support 1; settings put global force_resizable_activities 1",
-                	mode = CommandMode.CLICK_EXECUTE
-            	),
-            	CommandItem(
-              		title = "以小窗启动应用",
-              		command = "am start -n \${CALL:selectActivity()} -f 0x10000000 --windowingMode 5",
-                	mode = CommandMode.CLICK_EXECUTE
-            	),
-            	CommandItem(
-              		title = "打开开发者选项",
-              		command = "echo -n '3'$(getprop persist.sys.serialno) | md5sum | awk '{print $1}' > /sdcard/adb_special_enable.xml; settings put global special_enable_adb_debug 1; settings put global development_settings_enabled 1; setprop sys.allow.development true; am start -n \"com.android.settings/.SettingsActivity\" -a android.intent.action.MAIN -f 0x10000000 --el :settings:show_fragment com.android.settings.development.DevelopmentSettingsDashboardFragment",
-                	mode = CommandMode.CLICK_EXECUTE
-            	),
-            	CommandItem(
-              		title = "打开开发者磁贴配置",
-              		command = "am start -n \"com.android.settings/.ZybSettings\" --es \":settings:show_fragment\" \"com.android.settings.development.qstile.DevelopmentTileConfigFragment\"",
-                	mode = CommandMode.CLICK_EXECUTE
-            	)
-        	)
-        	loadedCommands = defaultCommands
-        	saveCommands(context, defaultCommands)
-    	}
-    	commands = loadedCommands
-	}
+    LaunchedEffect(Unit) {
+        var loadedCommands = loadCommands(context)
+        if (loadedCommands.isEmpty()) {
+            val defaultCommands = listOf(
+                CommandItem(
+                    title = "禁用PadMs",
+                    command = "am force-stop com.zuoyebang.padms; pm clear com.zuoyebang.padms; pm disable-user com.zuoyebang.padms",
+                    mode = CommandMode.CLICK_EXECUTE
+                ),
+                CommandItem(
+                    title = "无网保活ADB",
+                    command = "settings put global development_settings_enabled 1; settings put global adb_enabled 1; settings put secure debug_app roro.stellar.manager",
+                    mode = CommandMode.CLICK_EXECUTE
+                ),
+                CommandItem(
+                    title = "开启小窗",
+                    command = "settings put global enable_freeform_support 1; settings put global force_resizable_activities 1",
+                    mode = CommandMode.CLICK_EXECUTE
+                ),
+                CommandItem(
+                    title = "以小窗启动应用",
+                    command = "am start -n ${'$'}{CALL:selectActivity()} -f 0x10000000 --windowingMode 5",
+                    mode = CommandMode.CLICK_EXECUTE
+                ),
+                CommandItem(
+                    title = "打开开发者选项",
+                    command = "echo -n '3'$(getprop persist.sys.serialno) | md5sum | awk '{print $1}' > /sdcard/adb_special_enable.xml; settings put global special_enable_adb_debug 1; settings put global development_settings_enabled 1; setprop sys.allow.development true; am start -n \"com.android.settings/.SettingsActivity\" -a android.intent.action.MAIN -f 0x10000000 --el :settings:show_fragment com.android.settings.development.DevelopmentSettingsDashboardFragment",
+                    mode = CommandMode.CLICK_EXECUTE
+                ),
+                CommandItem(
+                    title = "打开开发者磁贴配置",
+                    command = "am start -n \"com.android.settings/.ZybSettings\" --es \":settings:show_fragment\" \"com.android.settings.development.qstile.DevelopmentTileConfigFragment\"",
+                    mode = CommandMode.CLICK_EXECUTE
+                )
+            )
+            loadedCommands = defaultCommands
+            saveCommands(context, defaultCommands)
+        }
+        commands = loadedCommands
+    }
 
     val gridColumns = if (screenConfig.isLandscape) 4 else 2
 
@@ -221,11 +228,48 @@ fun TerminalScreen(
     }
 
     if (state.showResultDialog) {
-        ExecutionResultDialog(
-            state = state,
-            onDismiss = { terminalViewModel.dismissDialog() },
-            terminalViewModel = terminalViewModel
-        )
+        if (state.pendingCall != null) {
+            val pendingCall = state.pendingCall!!
+            when (pendingCall.functionName) {
+                "selectApp" -> {
+                    AppSelectionDialog(
+                        onSelect = { packageName ->
+                            val resolvedCommand = pendingCall.resolvedPrefix + packageName + pendingCall.resolvedSuffix
+                            terminalViewModel.dismissDialog()
+                            terminalViewModel.continueWithResolvedCommand(resolvedCommand)
+                        },
+                        onDismiss = {
+                            terminalViewModel.dismissDialog()
+                        }
+                    )
+                }
+                "selectActivity" -> {
+                    AppWithActivitySelectionDialog(
+                        onSelect = { componentName ->
+                            val resolvedCommand = pendingCall.resolvedPrefix + componentName + pendingCall.resolvedSuffix
+                            terminalViewModel.dismissDialog()
+                            terminalViewModel.continueWithResolvedCommand(resolvedCommand)
+                        },
+                        onDismiss = {
+                            terminalViewModel.dismissDialog()
+                        }
+                    )
+                }
+                else -> {
+                    ExecutionResultDialog(
+                        state = state,
+                        onDismiss = { terminalViewModel.dismissDialog() },
+                        terminalViewModel = terminalViewModel
+                    )
+                }
+            }
+        } else {
+            ExecutionResultDialog(
+                state = state,
+                onDismiss = { terminalViewModel.dismissDialog() },
+                terminalViewModel = terminalViewModel
+            )
+        }
     }
 }
 
@@ -652,7 +696,6 @@ private fun ExecutionResultDialog(
     terminalViewModel: TerminalViewModel
 ) {
     val result = state.result
-    val context = LocalContext.current
 
     BasicAlertDialog(
         onDismissRequest = { if (!state.isRunning) onDismiss() }
@@ -798,3 +841,171 @@ private fun InfoText(label: String, value: String, isError: Boolean = false) {
         )
     }
 }
+
+@Composable
+fun AppSelectionDialog(
+    onSelect: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+    val pm = context.packageManager
+    
+    val apps = remember {
+        pm.getInstalledApplications(PackageManager.GET_META_DATA)
+            .filter { it.packageName != context.packageName }
+            .sortedBy { pm.getApplicationLabel(it).toString() }
+            .map { app ->
+                AppInfo(
+                    packageName = app.packageName,
+                    label = pm.getApplicationLabel(app).toString()
+                )
+            }
+    }
+    
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth(0.9f)
+                .fillMaxHeight(0.7f),
+            shape = MaterialTheme.shapes.large
+        ) {
+            Column(
+                modifier = Modifier.fillMaxSize()
+            ) {
+                Text(
+                    text = "选择应用",
+                    style = MaterialTheme.typography.headlineSmall,
+                    modifier = Modifier.padding(16.dp)
+                )
+                
+                Divider()
+                
+                LazyColumn(
+                    modifier = Modifier.weight(1f)
+                ) {
+                    items(apps) { app ->
+                        ListItem(
+                            headlineContent = { Text(app.label) },
+                            supportingContent = { Text(app.packageName, fontSize = 10.sp) },
+                            modifier = Modifier.clickable {
+                                onSelect(app.packageName)
+                            }
+                        )
+                        Divider()
+                    }
+                }
+                
+                TextButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.align(Alignment.End)
+                ) {
+                    Text("取消")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun AppWithActivitySelectionDialog(
+    onSelect: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+    val pm = context.packageManager
+    
+    val appsWithActivities = remember {
+        pm.getInstalledApplications(PackageManager.GET_META_DATA)
+            .filter { it.packageName != context.packageName }
+            .mapNotNull { app ->
+                try {
+                    val intent = Intent(Intent.ACTION_MAIN).apply {
+                        addCategory(Intent.CATEGORY_LAUNCHER)
+                        setPackage(app.packageName)
+                    }
+                    val resolveInfo = pm.queryIntentActivities(intent, 0).firstOrNull()
+                    if (resolveInfo != null) {
+                        val activityName = resolveInfo.activityInfo.name
+                        val componentName = "${app.packageName}/$activityName"
+                        AppWithActivityInfo(
+                            packageName = app.packageName,
+                            label = pm.getApplicationLabel(app).toString(),
+                            componentName = componentName,
+                            activityShortName = activityName.substringAfterLast('.')
+                        )
+                    } else {
+                        null
+                    }
+                } catch (e: Exception) {
+                    null
+                }
+            }
+            .sortedBy { it.label }
+    }
+    
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth(0.9f)
+                .fillMaxHeight(0.7f),
+            shape = MaterialTheme.shapes.large
+        ) {
+            Column(
+                modifier = Modifier.fillMaxSize()
+            ) {
+                Text(
+                    text = "选择应用和启动Activity",
+                    style = MaterialTheme.typography.headlineSmall,
+                    modifier = Modifier.padding(16.dp)
+                )
+                
+                Divider()
+                
+                LazyColumn(
+                    modifier = Modifier.weight(1f)
+                ) {
+                    items(appsWithActivities) { app ->
+                        ListItem(
+                            headlineContent = { Text(app.label) },
+                            supportingContent = {
+                                Column {
+                                    Text(app.packageName, fontSize = 10.sp)
+                                    Text("Activity: ${app.activityShortName}", fontSize = 9.sp, color = MaterialTheme.colorScheme.primary)
+                                }
+                            },
+                            modifier = Modifier.clickable {
+                                onSelect(app.componentName)
+                            }
+                        )
+                        Divider()
+                    }
+                }
+                
+                TextButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.align(Alignment.End)
+                ) {
+                    Text("取消")
+                }
+            }
+        }
+    }
+}
+
+data class AppInfo(
+    val packageName: String,
+    val label: String
+)
+
+data class AppWithActivityInfo(
+    val packageName: String,
+    val label: String,
+    val componentName: String,
+    val activityShortName: String
+)
