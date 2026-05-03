@@ -13,7 +13,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import roro.stellar.Stellar
-import java.io.BufferedReader
 import java.util.regex.Pattern
 
 data class ExecutionResult(
@@ -51,7 +50,7 @@ class TerminalViewModel(
         if (command.isBlank() || _state.value.isRunning) return
 
         val processedCommand = processCommandTemplate(command)
-        if (processedCommand == null) return // 等待用户选择
+        if (processedCommand == null) return
 
         startExecution(processedCommand)
     }

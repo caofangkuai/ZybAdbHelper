@@ -1,5 +1,6 @@
 package roro.stellar.manager.ui.features.terminal
 
+import android.content.Context
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
@@ -37,8 +38,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.compose.runtime.saveable.rememberSaveable
 import roro.stellar.manager.R
 import roro.stellar.manager.db.AppDatabase
@@ -74,16 +77,6 @@ private suspend fun saveCommands(context: android.content.Context, commands: Lis
     dao.deleteAll()
     dao.insertAll(commands.map { CommandEntity(it.id, it.title, it.command, it.mode.name) })
     commands.forEach { LOGGER.d("保存命令: title=${it.title}, command=${it.command}, mode=${it.mode.name}") }
-}
-
-class TerminalViewModelFactory(private val context: Context) : ViewModelProvider.Factory {
-    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        if (modelClass.isAssignableFrom(TerminalViewModel::class.java)) {
-            @Suppress("UNCHECKED_CAST")
-            return TerminalViewModel(context.applicationContext) as T
-        }
-        throw IllegalArgumentException("Unknown ViewModel class")
-    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -259,6 +252,17 @@ fun TerminalScreen(
             onDismiss = { terminalViewModel.dismissDialog() },
             terminalViewModel = terminalViewModel
         )
+    }
+}
+
+// ViewModelFactory 需要在类外部定义
+class TerminalViewModelFactory(private val context: Context) : ViewModelProvider.Factory {
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        if (modelClass.isAssignableFrom(TerminalViewModel::class.java)) {
+            @Suppress("UNCHECKED_CAST")
+            return TerminalViewModel(context.applicationContext) as T
+        }
+        throw IllegalArgumentException("Unknown ViewModel class")
     }
 }
 
@@ -732,7 +736,6 @@ private fun ExecutionResultDialog(
 ) {
     val result = state.result
     
-    // 限制UI更新频率
     var throttledOutput by remember { mutableStateOf("") }
     var lastUpdateTime by remember { mutableStateOf(0L) }
     
