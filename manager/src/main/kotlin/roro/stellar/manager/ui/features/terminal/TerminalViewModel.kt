@@ -1,5 +1,7 @@
 package roro.stellar.manager.ui.features.terminal
 
+import android.content.Context
+import android.content.pm.PackageManager
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CancellationException
@@ -8,10 +10,11 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import roro.stellar.Stellar
 import java.io.BufferedReader
-import java.io.InputStreamReader
+import java.util.regex.Pattern
 
 data class ExecutionResult(
     val command: String,
@@ -25,10 +28,18 @@ data class TerminalState(
     val isRunning: Boolean = false,
     val currentOutput: String = "",
     val showResultDialog: Boolean = false,
-    val result: ExecutionResult? = null
+    val result: ExecutionResult? = null,
+    val pendingCommand: String? = null,
+    val pendingSelection: PendingSelection? = null
 )
 
-class TerminalViewModel : ViewModel() {
+enum class PendingSelection {
+    APP, ACTIVITY
+}
+
+class TerminalViewModel(
+    private val applicationContext: Context
+) : ViewModel() {
 
     private val _state = MutableStateFlow(TerminalState())
     val state: StateFlow<TerminalState> = _state.asStateFlow()
@@ -38,15 +49,111 @@ class TerminalViewModel : ViewModel() {
 
     fun executeCommand(command: String) {
         if (command.isBlank() || _state.value.isRunning) return
-        if (!Stellar.pingBinder()) return
 
+        val processedCommand = processCommandTemplate(command)
+        if (processedCommand == null) return // 等待用户选择
+
+        startExecution(processedCommand)
+    }
+
+    private fun processCommandTemplate(command: String): String? {
+        val pattern = Pattern.compile("\\$\\{CALL:([^}]+)}")
+        val matcher = pattern.matcher(command)
+
+        if (matcher.find()) {
+            val fullMatch = matcher.group()
+            val functionName = matcher.group(1)
+
+            when {
+                functionName.startsWith("selectApp()") -> {
+                    _state.update {
+                        it.copy(
+                            pendingCommand = command,
+                            pendingSelection = PendingSelection.APP
+                        )
+                    }
+                    return null
+                }
+                functionName.startsWith("selectActivity()") -> {
+                    _state.update {
+                        it.copy(
+                            pendingCommand = command,
+                            pendingSelection = PendingSelection.ACTIVITY
+                        )
+                    }
+                    return null
+                }
+            }
+        }
+
+        return command
+    }
+
+    fun onAppSelected(packageName: String, needActivity: Boolean = false) {
+        val pendingCommand = _state.value.pendingCommand
+        if (pendingCommand == null) return
+
+        val fullPath = if (needActivity) {
+            val mainActivity = getMainActivity(packageName)
+            if (mainActivity.isNotEmpty()) {
+                "$packageName/$mainActivity"
+            } else {
+                packageName
+            }
+        } else {
+            packageName
+        }
+
+        val pattern = Pattern.compile("\\$\\{CALL:[^}]+}")
+        val finalCommand = pattern.matcher(pendingCommand).replaceFirst(fullPath)
+
+        _state.update { it.copy(pendingCommand = null, pendingSelection = null) }
+        startExecution(finalCommand)
+    }
+
+    private fun getMainActivity(packageName: String): String {
+        return try {
+            val pm = applicationContext.packageManager
+            val launchIntent = pm.getLaunchIntentForPackage(packageName)
+            launchIntent?.component?.className ?: ""
+        } catch (e: Exception) {
+            ""
+        }
+    }
+
+    fun getInstalledApps(): Map<String, String> {
+        val apps = mutableMapOf<String, String>()
+        try {
+            val pm = applicationContext.packageManager
+            val packages = pm.getInstalledApplications(PackageManager.GET_META_DATA)
+            for (app in packages) {
+                if (pm.getLaunchIntentForPackage(app.packageName) != null) {
+                    val appName = pm.getApplicationLabel(app).toString()
+                    apps[appName] = app.packageName
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return apps.toSortedMap()
+    }
+
+    private fun startExecution(command: String) {
+        currentJob?.cancel()
         currentJob = viewModelScope.launch(Dispatchers.IO) {
             val startTime = System.currentTimeMillis()
-            _state.value = _state.value.copy(
-                isRunning = true,
-                currentOutput = "",
-                showResultDialog = true
-            )
+
+            _state.update {
+                it.copy(
+                    isRunning = true,
+                    currentOutput = "",
+                    showResultDialog = true,
+                    result = null
+                )
+            }
+
+            val outputLines = mutableListOf<String>()
+            val maxStoredLines = 5000
 
             try {
                 val process = Stellar.newProcess(
@@ -56,113 +163,103 @@ class TerminalViewModel : ViewModel() {
                 )
                 currentProcess = process
 
-                val outputLines = mutableListOf<String>()
-                val reader = BufferedReader(InputStreamReader(process.inputStream))
-                val errorReader = BufferedReader(InputStreamReader(process.errorStream))
-
-                val maxStoredLines = 5000
-                val maxDisplayLines = 200
-                var updateInterval = 50L
-                var lastUpdateTime = System.currentTimeMillis()
-                var isHighFrequency = false
-
-                reader.lineSequence().forEach { line ->
-                    outputLines.add(line)
-
-                    if (outputLines.size > maxStoredLines) {
-                        outputLines.removeAt(0)
-                    }
-
-                    if (!isHighFrequency && outputLines.size >= 100) {
-                        val elapsed = System.currentTimeMillis() - startTime
-                        if (elapsed < 1000) {
-                            isHighFrequency = true
-                            updateInterval = 500L
+                val readingJob = launch {
+                    process.inputStream.bufferedReader().use { reader ->
+                        reader.forEachLine { line ->
+                            outputLines.add(line)
+                            if (outputLines.size > maxStoredLines) {
+                                outputLines.removeAt(0)
+                            }
+                            _state.update { it.copy(currentOutput = formatOutput(outputLines)) }
                         }
-                    }
-
-                    val now = System.currentTimeMillis()
-                    if (now - lastUpdateTime >= updateInterval) {
-                        val displayLines = outputLines.takeLast(maxDisplayLines)
-                        val displayText = if (outputLines.size > maxDisplayLines) {
-                            "... (${outputLines.size} lines total, showing last $maxDisplayLines)\n" + displayLines.joinToString("\n")
-                        } else {
-                            displayLines.joinToString("\n")
-                        }
-                        _state.value = _state.value.copy(currentOutput = displayText)
-                        lastUpdateTime = now
                     }
                 }
 
-                errorReader.lineSequence().forEach { line ->
-                    outputLines.add(line)
-
-                    if (outputLines.size > maxStoredLines) {
-                        outputLines.removeAt(0)
+                val errorReadingJob = launch {
+                    process.errorStream.bufferedReader().use { reader ->
+                        reader.forEachLine { line ->
+                            outputLines.add("[STDERR] $line")
+                            if (outputLines.size > maxStoredLines) {
+                                outputLines.removeAt(0)
+                            }
+                            _state.update { it.copy(currentOutput = formatOutput(outputLines)) }
+                        }
                     }
                 }
 
                 val exitCode = process.waitFor()
-                process.destroy()
-                currentProcess = null
-                val executionTime = System.currentTimeMillis() - startTime
+                readingJob.cancel()
+                errorReadingJob.cancel()
 
-                val finalOutput = if (outputLines.size > maxStoredLines) {
-                    "... (${outputLines.size} lines total, showing last $maxStoredLines)\n" + outputLines.takeLast(maxStoredLines).joinToString("\n")
-                } else {
-                    outputLines.joinToString("\n")
+                val executionTime = System.currentTimeMillis() - startTime
+                val finalOutput = formatOutput(outputLines, maxStoredLines)
+
+                _state.update {
+                    it.copy(
+                        isRunning = false,
+                        result = ExecutionResult(
+                            command = command,
+                            output = finalOutput,
+                            exitCode = exitCode,
+                            executionTimeMs = executionTime,
+                            isError = exitCode != 0
+                        )
+                    )
                 }
-
-                _state.value = _state.value.copy(
-                    isRunning = false,
-                    result = ExecutionResult(
-                        command = command,
-                        output = finalOutput,
-                        exitCode = exitCode,
-                        executionTimeMs = executionTime,
-                        isError = exitCode != 0
-                    )
-                )
             } catch (e: CancellationException) {
-                currentProcess?.destroy()
-                currentProcess = null
-                val executionTime = System.currentTimeMillis() - startTime
-                _state.value = _state.value.copy(
-                    isRunning = false,
-                    result = ExecutionResult(
-                        command = command,
-                        output = _state.value.currentOutput + "\n\n[Interrupted]",
-                        exitCode = -1,
-                        executionTimeMs = executionTime,
-                        isError = true
+                currentProcess?.destroyForcibly()
+                _state.update {
+                    it.copy(
+                        isRunning = false,
+                        result = ExecutionResult(
+                            command = command,
+                            output = _state.value.currentOutput + "\n\n[Interrupted]",
+                            exitCode = -1,
+                            executionTimeMs = System.currentTimeMillis() - startTime,
+                            isError = true
+                        )
                     )
-                )
-                throw e
+                }
             } catch (e: Exception) {
-                currentProcess?.destroy()
-                currentProcess = null
-                val executionTime = System.currentTimeMillis() - startTime
-                _state.value = _state.value.copy(
-                    isRunning = false,
-                    result = ExecutionResult(
-                        command = command,
-                        output = "Error: ${e.message}",
-                        exitCode = -1,
-                        executionTimeMs = executionTime,
-                        isError = true
+                currentProcess?.destroyForcibly()
+                _state.update {
+                    it.copy(
+                        isRunning = false,
+                        result = ExecutionResult(
+                            command = command,
+                            output = "Error: ${e.message}",
+                            exitCode = -1,
+                            executionTimeMs = System.currentTimeMillis() - startTime,
+                            isError = true
+                        )
                     )
-                )
+                }
+            } finally {
+                currentProcess = null
             }
         }
     }
 
+    private fun formatOutput(lines: List<String>, maxLines: Int = 200): String {
+        return if (lines.size > maxLines) {
+            "... (${lines.size} lines total, showing last $maxLines)\n" +
+                    lines.takeLast(maxLines).joinToString("\n")
+        } else {
+            lines.joinToString("\n")
+        }
+    }
+
     fun dismissDialog() {
-        _state.value = _state.value.copy(showResultDialog = false, result = null)
+        _state.update { it.copy(showResultDialog = false, result = null) }
     }
 
     fun cancelExecution() {
         currentJob?.cancel()
-        currentProcess?.destroy()
+        currentProcess?.destroyForcibly()
         currentProcess = null
+    }
+
+    fun clearPendingSelection() {
+        _state.update { it.copy(pendingCommand = null, pendingSelection = null) }
     }
 }

@@ -4,9 +4,11 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
@@ -35,6 +37,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
+import androidx.lifecycle.ViewModelProvider
+import androidx.compose.runtime.saveable.rememberSaveable
 import roro.stellar.manager.R
 import roro.stellar.manager.db.AppDatabase
 import roro.stellar.manager.db.CommandEntity
@@ -71,58 +76,91 @@ private suspend fun saveCommands(context: android.content.Context, commands: Lis
     commands.forEach { LOGGER.d("保存命令: title=${it.title}, command=${it.command}, mode=${it.mode.name}") }
 }
 
+class TerminalViewModelFactory(private val context: Context) : ViewModelProvider.Factory {
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        if (modelClass.isAssignableFrom(TerminalViewModel::class.java)) {
+            @Suppress("UNCHECKED_CAST")
+            return TerminalViewModel(context.applicationContext) as T
+        }
+        throw IllegalArgumentException("Unknown ViewModel class")
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TerminalScreen(
     topAppBarState: TopAppBarState,
-    terminalViewModel: TerminalViewModel = viewModel()
+    terminalViewModel: TerminalViewModel = viewModel(
+        factory = TerminalViewModelFactory(LocalContext.current.applicationContext)
+    )
 ) {
     val scrollBehavior = createTopAppBarScrollBehavior(topAppBarState)
     val state by terminalViewModel.state.collectAsState()
     val screenConfig = LocalScreenConfig.current
     val context = LocalContext.current
 
-    var showCreateDialog by remember { mutableStateOf(false) }
-    var showQuickExecuteDialog by remember { mutableStateOf(false) }
-    var editingCommand by remember { mutableStateOf<CommandItem?>(null) }
-    var commands by remember { mutableStateOf(emptyList<CommandItem>()) }
+    var showCreateDialog by rememberSaveable { mutableStateOf(false) }
+    var showQuickExecuteDialog by rememberSaveable { mutableStateOf(false) }
+    var editingCommand by rememberSaveable { mutableStateOf<CommandItem?>(null) }
+    var commands by rememberSaveable { mutableStateOf(emptyList<CommandItem>()) }
     val scope = rememberCoroutineScope()
 
-	LaunchedEffect(Unit) {
-    	var loadedCommands = loadCommands(context)
-    	if (loadedCommands.isEmpty()) {
-        	val defaultCommands = listOf(
-            	CommandItem(
-              		title = "禁用PadMs",
-              		command = "am force-stop com.zuoyebang.padms; pm clear com.zuoyebang.padms; pm disable-user com.zuoyebang.padms",
-                	mode = CommandMode.CLICK_EXECUTE
-            	),
-            	CommandItem(
-              		title = "开启小窗",
-              		command = "settings put global enable_freeform_support 1; settings put global force_resizable_activities 1",
-                	mode = CommandMode.CLICK_EXECUTE
-            	),
-            	CommandItem(
-              		title = "以小窗启动应用",
-              		command = "am start -n {包名}/{Activity} -f 0x10000000 --windowingMode 5",
-                	mode = CommandMode.CLICK_EXECUTE
-            	),
-            	CommandItem(
-              		title = "打开开发者选项",
-              		command = "setprop sys.allow.development true; adb shell am start -n \"com.android.settings/com.android.settings.SettingsActivity\" -a android.intent.action.MAIN -f 0x10000000 --el :settings:show_fragment com.android.settings.development.DevelopmentSettingsDashboardFragment",
-                	mode = CommandMode.CLICK_EXECUTE
-            	),
-            	CommandItem(
-              		title = "打开开发者磁贴配置",
-              		command = "am start -n \"com.android.settings/com.android.settings.SettingsActivity\" --es \":settings:show_fragment\" \"com.android.settings.development.qstile.DevelopmentTileConfigFragment\"",
-                	mode = CommandMode.CLICK_EXECUTE
-            	)
-        	)
-        	loadedCommands = defaultCommands
-        	saveCommands(context, defaultCommands)
-    	}
-    	commands = loadedCommands
-	}
+    LaunchedEffect(Unit) {
+        var loadedCommands = loadCommands(context)
+        if (loadedCommands.isEmpty()) {
+            val defaultCommands = listOf(
+                CommandItem(
+                    title = "禁用PadMs",
+                    command = "am force-stop com.zuoyebang.padms; pm clear com.zuoyebang.padms; pm disable-user com.zuoyebang.padms",
+                    mode = CommandMode.CLICK_EXECUTE
+                ),
+                CommandItem(
+                    title = "无网保活ADB",
+                    command = "settings put global development_settings_enabled 1; settings put global adb_enabled 1; settings put secure debug_app roro.stellar.manager",
+                    mode = CommandMode.CLICK_EXECUTE
+                ),
+                CommandItem(
+                    title = "开启小窗",
+                    command = "settings put global enable_freeform_support 1; settings put global force_resizable_activities 1",
+                    mode = CommandMode.CLICK_EXECUTE
+                ),
+                CommandItem(
+                    title = "以小窗启动应用",
+                    command = "am start -n 包名/Activity名称 -f 0x10000000 --windowingMode 5",
+                    mode = CommandMode.CLICK_EXECUTE
+                ),
+                CommandItem(
+                    title = "打开开发者选项",
+                    command = "echo -n '3'$(getprop persist.sys.serialno) | md5sum | awk '{print $1}' > /sdcard/adb_special_enable.xml; settings put global special_enable_adb_debug 1; settings put global development_settings_enabled 1; setprop sys.allow.development true; am start -n \"com.android.settings/.SettingsActivity\" -a android.intent.action.MAIN -f 0x10000000 --el :settings:show_fragment com.android.settings.development.DevelopmentSettingsDashboardFragment",
+                    mode = CommandMode.CLICK_EXECUTE
+                ),
+                CommandItem(
+                    title = "打开开发者磁贴配置",
+                    command = "am start -n \"com.android.settings/.ZybSettings\" --es \":settings:show_fragment\" \"com.android.settings.development.qstile.DevelopmentTileConfigFragment\"",
+                    mode = CommandMode.CLICK_EXECUTE
+                )
+            )
+            loadedCommands = defaultCommands
+            saveCommands(context, defaultCommands)
+        }
+        commands = loadedCommands
+    }
+
+    // 处理应用选择对话框
+    val pendingSelection by remember { derivedStateOf { state.pendingSelection } }
+    
+    if (pendingSelection != null) {
+        AppSelectionDialog(
+            apps = terminalViewModel.getInstalledApps(),
+            needActivity = pendingSelection == PendingSelection.ACTIVITY,
+            onSelect = { packageName ->
+                terminalViewModel.onAppSelected(packageName, needActivity = pendingSelection == PendingSelection.ACTIVITY)
+            },
+            onDismiss = {
+                terminalViewModel.clearPendingSelection()
+            }
+        )
+    }
 
     val gridColumns = if (screenConfig.isLandscape) 4 else 2
 
@@ -222,6 +260,52 @@ fun TerminalScreen(
             terminalViewModel = terminalViewModel
         )
     }
+}
+
+@Composable
+private fun AppSelectionDialog(
+    apps: Map<String, String>,
+    needActivity: Boolean,
+    onSelect: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val appNames = apps.keys.toList()
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = if (needActivity) "选择应用（将获取主Activity）" else "选择应用",
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 400.dp)
+            ) {
+                items(appNames) { appName ->
+                    TextButton(
+                        onClick = { onSelect(apps[appName]!!) },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = appName,
+                            modifier = Modifier.fillMaxWidth(),
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Start
+                        )
+                    }
+                    HorizontalDivider()
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("取消")
+            }
+        }
+    )
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -424,9 +508,9 @@ private fun CreateCommandDialog(
     onDismiss: () -> Unit,
     onConfirm: (String, String, CommandMode) -> Unit
 ) {
-    var selectedMode by remember { mutableStateOf(CommandMode.CLICK_EXECUTE) }
-    var title by remember { mutableStateOf("") }
-    var command by remember { mutableStateOf("") }
+    var selectedMode by rememberSaveable { mutableStateOf(CommandMode.CLICK_EXECUTE) }
+    var title by rememberSaveable { mutableStateOf("") }
+    var command by rememberSaveable { mutableStateOf("") }
 
     StellarDialog(
         onDismissRequest = onDismiss,
@@ -544,8 +628,8 @@ private fun EditCommandDialog(
     onDismiss: () -> Unit,
     onConfirm: (String, String) -> Unit
 ) {
-    var title by remember { mutableStateOf(item.title) }
-    var command by remember { mutableStateOf(item.command) }
+    var title by rememberSaveable { mutableStateOf(item.title) }
+    var command by rememberSaveable { mutableStateOf(item.command) }
 
     StellarDialog(
         onDismissRequest = onDismiss,
@@ -612,7 +696,7 @@ private fun QuickExecuteDialog(
     onDismiss: () -> Unit,
     onExecute: (String) -> Unit
 ) {
-    var command by remember { mutableStateOf("") }
+    var command by rememberSaveable { mutableStateOf("") }
 
     StellarDialog(
         onDismissRequest = onDismiss,
@@ -647,16 +731,26 @@ private fun ExecutionResultDialog(
     terminalViewModel: TerminalViewModel
 ) {
     val result = state.result
-    val context = LocalContext.current
-
-    BasicAlertDialog(
+    
+    // 限制UI更新频率
+    var throttledOutput by remember { mutableStateOf("") }
+    var lastUpdateTime by remember { mutableStateOf(0L) }
+    
+    LaunchedEffect(state.currentOutput) {
+        val now = System.currentTimeMillis()
+        if (now - lastUpdateTime >= 100) {
+            throttledOutput = state.currentOutput
+            lastUpdateTime = now
+        }
+    }
+    
+    AlertDialog(
         onDismissRequest = { if (!state.isRunning) onDismiss() }
     ) {
         Surface(
             shape = AppShape.shapes.dialog,
             color = MaterialTheme.colorScheme.surfaceContainerHigh,
-            tonalElevation = 6.dp,
-            modifier = Modifier.fillMaxWidth(1f)
+            modifier = Modifier.fillMaxWidth(0.95f)
         ) {
             Column(
                 modifier = Modifier.padding(AppSpacing.dialogPadding)
@@ -710,7 +804,7 @@ private fun ExecutionResultDialog(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 val output = if (state.isRunning) {
-                    state.currentOutput.ifEmpty { stringResource(R.string.executing_ellipsis) }
+                    throttledOutput.ifEmpty { stringResource(R.string.executing_ellipsis) }
                 } else {
                     result?.output ?: ""
                 }
