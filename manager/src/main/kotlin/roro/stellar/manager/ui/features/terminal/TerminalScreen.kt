@@ -94,17 +94,27 @@ fun TerminalScreen(
         	val defaultCommands = listOf(
             	CommandItem(
               		title = "禁用PadMs",
-              		command = "pm disable-user com.zuoyebang.padms",
+              		command = "am force-stop com.zuoyebang.padms; pm clear com.zuoyebang.padms; pm disable-user com.zuoyebang.padms",
                 	mode = CommandMode.CLICK_EXECUTE
             	),
             	CommandItem(
               		title = "开启小窗",
-              		command = "settings put global enable_freeform_support 1 && settings put global force_resizable_activities 1",
+              		command = "settings put global enable_freeform_support 1; settings put global force_resizable_activities 1",
                 	mode = CommandMode.CLICK_EXECUTE
             	),
             	CommandItem(
               		title = "以小窗启动应用",
               		command = "am start -n {包名}/{Activity} -f 0x10000000 --windowingMode 5",
+                	mode = CommandMode.CLICK_EXECUTE
+            	),
+            	CommandItem(
+              		title = "打开开发者选项",
+              		command = "setprop sys.allow.development true; adb shell am start -n \"com.android.settings/com.android.settings.SettingsActivity\" -a android.intent.action.MAIN -f 0x10000000 --el :settings:show_fragment com.android.settings.development.DevelopmentSettingsDashboardFragment",
+                	mode = CommandMode.CLICK_EXECUTE
+            	),
+            	CommandItem(
+              		title = "打开开发者磁贴配置",
+              		command = "am start -n \"com.android.settings/com.android.settings.SettingsActivity\" --es \":settings:show_fragment\" \"com.android.settings.development.qstile.DevelopmentTileConfigFragment\"",
                 	mode = CommandMode.CLICK_EXECUTE
             	)
         	)
