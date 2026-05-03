@@ -109,7 +109,7 @@ fun TerminalScreen(
             	),
             	CommandItem(
               		title = "以小窗启动应用",
-              		command = "am start -n 包名/Activity名称 -f 0x10000000 --windowingMode 5",
+              		command = "am start -n ${CALL:selectActivity()} -f 0x10000000 --windowingMode 5",
                 	mode = CommandMode.CLICK_EXECUTE
             	),
             	CommandItem(
