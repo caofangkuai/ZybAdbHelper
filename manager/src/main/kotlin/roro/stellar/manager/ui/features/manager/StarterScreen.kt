@@ -358,7 +358,7 @@ private fun StepActionContent(
                 				putExtra(":settings:show_fragment", "com.android.settings.development.WirelessDebuggingFragment")
                 				flags = Intent.FLAG_ACTIVITY_NEW_TASK
             				}
-            				val exploit = BadResolveExploit(context)
+            				val exploit = BadResolveExploit.getInstance(context)
 							exploit.target(intent)
 							    //.useGadget(true)
 							    .execute()
@@ -478,7 +478,7 @@ private fun StepActionContent(
                 				putExtra(":settings:show_fragment", "com.android.settings.development.WirelessDebuggingFragment")
                 				flags = Intent.FLAG_ACTIVITY_NEW_TASK
             				}
-            				val exploit = BadResolveExploit(context)
+            				val exploit = BadResolveExploit.getInstance(context)
 							exploit.target(intent)
 							    //.useGadget(true)
 							    .execute()
