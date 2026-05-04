@@ -65,6 +65,7 @@ public class StartAnyWhere {
         bundle.readFromParcel(obtain);
         
         AuthService.addAccountResponse = bundle;
+        AuthService.isBadResolve = false;
         if (context == null) {
             return;
         }

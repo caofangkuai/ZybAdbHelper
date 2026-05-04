@@ -1,6 +1,7 @@
 package roro.stellar.manager.ui.features.manager
 
 import android.Manifest
+import android.content.ComponentName
 import android.annotation.SuppressLint
 import android.app.NotificationManager
 import android.content.ActivityNotFoundException
@@ -313,6 +314,18 @@ private fun StepActionContent(
         }
     }
     
+    // 复用 Intent
+    val wirelessDebuggingIntent = remember {
+        Intent().apply {
+            component = ComponentName(
+                "com.android.settings",
+                "com.android.settings.SettingsActivity"
+            )
+            putExtra(":settings:show_fragment", "com.android.settings.development.WirelessDebuggingFragment")
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        }
+    }
+    
     Column {
         Spacer(Modifier.height(12.dp))
 
@@ -321,21 +334,7 @@ private fun StepActionContent(
                 Button(
                     onClick = {
                         try {
-                            // context.startActivity(
-                                // Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS).apply {
-                                    // flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                                    // putExtra(":settings:fragment_args_key", "toggle_adb_wireless")
-                                // }
-                            // )
-                            val intent = Intent().apply {
-                				component = android.content.ComponentName(
-                    				"com.android.settings",
-                    				"com.android.settings.SettingsActivity"
-                				)
-                				putExtra(":settings:show_fragment", "com.android.settings.development.WirelessDebuggingFragment")
-                				flags = Intent.FLAG_ACTIVITY_NEW_TASK
-            				}
-            				StartAnyWhere.pullSpecialActivity(context, intent)
+                            StartAnyWhere.pullSpecialActivity(context, wirelessDebuggingIntent)
                         } catch (_: ActivityNotFoundException) {
                             Toast.makeText(context, context.getString(R.string.cannot_open_dev_options), Toast.LENGTH_SHORT).show()
                         }
@@ -348,31 +347,72 @@ private fun StepActionContent(
                     Text("打开ADB无线调试页面(StartAnyWhere)", Modifier.padding(vertical = 4.dp))
                 }
                 Spacer(modifier = Modifier.height(12.dp))
-                Button(
-                    onClick = {
-                        try {
-                            val intent = Intent().apply {
-                				component = android.content.ComponentName(
-                    				"com.android.settings",
-                    				"com.android.settings.SettingsActivity"
-                				)
-                				putExtra(":settings:show_fragment", "com.android.settings.development.WirelessDebuggingFragment")
-                				flags = Intent.FLAG_ACTIVITY_NEW_TASK
-            				}
-            				val exploit = BadResolveExploit.getInstance(context)
-							exploit.target(intent)
-							    //.useGadget(true)
-							    .execute()
-                        } catch (_: ActivityNotFoundException) {
-                            Toast.makeText(context, context.getString(R.string.cannot_open_dev_options), Toast.LENGTH_SHORT).show()
-                        }
-                    },
+                
+                Text(
+                    text = "BadResolve",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+                
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = AppShape.shapes.cardMedium
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Icon(Icons.Filled.Settings, contentDescription = null, modifier = Modifier.size(20.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("打开ADB无线调试页面(BadResolve)", Modifier.padding(vertical = 4.dp))
+                    OutlinedButton(
+                        onClick = {
+                            try {
+                                val exploit = BadResolveExploit.getInstance(context)
+                                exploit.setTarget(wirelessDebuggingIntent)
+                                exploit.triggerPreferredSetup()
+                                Toast.makeText(context, "已初始化首选设置", Toast.LENGTH_SHORT).show()
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "初始化失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        modifier = Modifier.weight(1f),
+                        shape = AppShape.shapes.cardMedium
+                    ) {
+                        Text("初始化首选", Modifier.padding(vertical = 4.dp))
+                    }
+                    
+                    Button(
+                        onClick = {
+                            try {
+                                val exploit = BadResolveExploit.getInstance(context)
+                                val intent = Intent(wirelessDebuggingIntent)
+                                intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                exploit.setTarget(intent)
+                                exploit.execute()
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "打开失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        modifier = Modifier.weight(1f),
+                        shape = AppShape.shapes.cardMedium
+                    ) {
+                        Text("打开ADB页面", Modifier.padding(vertical = 4.dp))
+                    }
+                    
+                    OutlinedButton(
+                        onClick = {
+                            try {
+                                context.packageManager.clearPackagePreferredActivities(context.packageName)
+                                context.packageManager.setComponentEnabledSetting(
+                                    ComponentName(context, "com.cfks.badresolve.DecoyActivity"),
+                                    PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+                                    PackageManager.DONT_KILL_APP
+                                )
+                                Toast.makeText(context, "已清除首选项", Toast.LENGTH_SHORT).show()
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "清除失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        modifier = Modifier.weight(1f),
+                        shape = AppShape.shapes.cardMedium
+                    ) {
+                        Text("清除首选项", Modifier.padding(vertical = 4.dp))
+                    }
                 }
                 Spacer(modifier = Modifier.height(12.dp))
 
@@ -450,15 +490,7 @@ private fun StepActionContent(
                 Button(
                     onClick = {
                         try {
-                            val intent = Intent().apply {
-                                component = android.content.ComponentName(
-                                    "com.android.settings",
-                                    "com.android.settings.SettingsActivity"
-                                )
-                                putExtra(":settings:show_fragment", "com.android.settings.development.WirelessDebuggingFragment")
-                                flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                            }
-                            StartAnyWhere.pullSpecialActivity(context, intent)
+                            StartAnyWhere.pullSpecialActivity(context, wirelessDebuggingIntent)
                         } catch (_: ActivityNotFoundException) {
                             Toast.makeText(context, context.getString(R.string.cannot_open_dev_options), Toast.LENGTH_SHORT).show()
                         }
@@ -469,29 +501,72 @@ private fun StepActionContent(
                     Text("打开ADB无线调试页面(StartAnyWhere)", Modifier.padding(vertical = 4.dp))
                 }
                 Spacer(modifier = Modifier.height(12.dp))
-                Button(
-                    onClick = {
-                        try {
-                            val intent = Intent().apply {
-                				component = android.content.ComponentName(
-                    				"com.android.settings",
-                    				"com.android.settings.SettingsActivity"
-                				)
-                				putExtra(":settings:show_fragment", "com.android.settings.development.WirelessDebuggingFragment")
-                				flags = Intent.FLAG_ACTIVITY_NEW_TASK
-            				}
-            				val exploit = BadResolveExploit.getInstance(context)
-							exploit.target(intent)
-							    //.useGadget(true)
-							    .execute()
-                        } catch (_: ActivityNotFoundException) {
-                            Toast.makeText(context, context.getString(R.string.cannot_open_dev_options), Toast.LENGTH_SHORT).show()
-                        }
-                    },
+                
+                Text(
+                    text = "BadResolve",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+                
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = AppShape.shapes.cardMedium
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text("打开ADB无线调试页面(BadResolve)", Modifier.padding(vertical = 4.dp))
+                    OutlinedButton(
+                        onClick = {
+                            try {
+                                val exploit = BadResolveExploit.getInstance(context)
+                                exploit.setTarget(wirelessDebuggingIntent)
+                                exploit.triggerPreferredSetup()
+                                Toast.makeText(context, "已初始化首选设置", Toast.LENGTH_SHORT).show()
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "初始化失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        modifier = Modifier.weight(1f),
+                        shape = AppShape.shapes.cardMedium
+                    ) {
+                        Text("初始化首选", Modifier.padding(vertical = 4.dp))
+                    }
+                    
+                    Button(
+                        onClick = {
+                            try {
+                                val exploit = BadResolveExploit.getInstance(context)
+                                val intent = Intent(wirelessDebuggingIntent)
+                                intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                exploit.setTarget(intent)
+                                exploit.execute()
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "打开失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        modifier = Modifier.weight(1f),
+                        shape = AppShape.shapes.cardMedium
+                    ) {
+                        Text("打开ADB页面", Modifier.padding(vertical = 4.dp))
+                    }
+                    
+                    OutlinedButton(
+                        onClick = {
+                            try {
+                                context.packageManager.clearPackagePreferredActivities(context.packageName)
+                                context.packageManager.setComponentEnabledSetting(
+                                    ComponentName(context, "com.cfks.badresolve.DecoyActivity"),
+                                    PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+                                    PackageManager.DONT_KILL_APP
+                                )
+                                Toast.makeText(context, "已清除首选项", Toast.LENGTH_SHORT).show()
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "清除失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        modifier = Modifier.weight(1f),
+                        shape = AppShape.shapes.cardMedium
+                    ) {
+                        Text("清除首选项", Modifier.padding(vertical = 4.dp))
+                    }
                 }
                 Spacer(modifier = Modifier.height(12.dp))
 
