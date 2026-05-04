@@ -347,6 +347,7 @@ private fun StepActionContent(
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("打开ADB无线调试页面(StartAnyWhere)", Modifier.padding(vertical = 4.dp))
                 }
+                Spacer(modifier = Modifier.height(12.dp))
                 Button(
                     onClick = {
                         try {
@@ -467,6 +468,7 @@ private fun StepActionContent(
                 ) {
                     Text("打开ADB无线调试页面(StartAnyWhere)", Modifier.padding(vertical = 4.dp))
                 }
+                Spacer(modifier = Modifier.height(12.dp))
                 Button(
                     onClick = {
                         try {
