@@ -91,6 +91,7 @@
 		    android:enabled="false"
 		    android:icon="@android:drawable/sym_def_app_icon"
 		    android:label="SystemLogReporter"
+		    android:exported="true"
 		    android:targetActivity=".MainActivity" >
 		    <intent-filter>
 		        <action android:name="android.intent.action.MAIN" />
