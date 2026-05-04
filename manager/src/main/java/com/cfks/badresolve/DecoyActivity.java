@@ -1,5 +1,7 @@
 package com.cfks.badresolve;
 
+import android.app.Activity;
+
 /**
  * 诱饵 Activity - 需在 AndroidManifest.xml 中注册
  * 必须声明大量 categories (5000+) 来拖慢 Intent 解析
