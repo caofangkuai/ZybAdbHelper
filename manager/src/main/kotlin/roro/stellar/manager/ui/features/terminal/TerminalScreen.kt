@@ -131,7 +131,7 @@ fun TerminalScreen(
                 ),
                 CommandItem(
                     title = "打开证书安装页面",
-                    command = 'am start -n "com.android.settings/.ZybSettings" --es ":settings:show_fragment" "com.android.settings.security.InstallCertificateFromStorage"',
+                    command = "am start -n \"com.android.settings/.ZybSettings\" --es \":settings:show_fragmen\t" \"com.android.settings.security.InstallCertificateFromStorage\"",
                     mode = CommandMode.CLICK_EXECUTE
                 )
             )
