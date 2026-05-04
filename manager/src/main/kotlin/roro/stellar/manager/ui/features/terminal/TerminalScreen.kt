@@ -99,42 +99,42 @@ fun TerminalScreen(
         var loadedCommands = loadCommands(context)
         if (loadedCommands.isEmpty()) {
             val defaultCommands = listOf(
-                CommandItem(
-                    title = "禁用PadMs",
-                    command = "am force-stop com.zuoyebang.padms; pm clear com.zuoyebang.padms; pm disable-user com.zuoyebang.padms",
-                    mode = CommandMode.CLICK_EXECUTE
-                ),
-                CommandItem(
-                    title = "无网保活ADB",
-                    command = "settings put global development_settings_enabled 1; settings put global adb_enabled 1; settings put secure debug_app roro.stellar.manager",
-                    mode = CommandMode.CLICK_EXECUTE
-                ),
-                CommandItem(
-                    title = "开启小窗",
-                    command = "settings put global enable_freeform_support 1; settings put global force_resizable_activities 1",
-                    mode = CommandMode.CLICK_EXECUTE
-                ),
-                CommandItem(
-                    title = "以小窗启动应用",
-                    command = "am start -n ${'$'}{CALL:selectActivity()} -f 0x10000000 --windowingMode 5",
-                    mode = CommandMode.CLICK_EXECUTE
-                ),
-                CommandItem(
-                    title = "打开开发者选项",
-                    command = "echo -n '3'$(getprop persist.sys.serialno) | md5sum | awk '{print $1}' > /sdcard/adb_special_enable.xml; settings put global special_enable_adb_debug 1; settings put global development_settings_enabled 1; setprop sys.allow.development true; am start -n \"com.android.settings/.SettingsActivity\" -a android.intent.action.MAIN -f 0x10000000 --el :settings:show_fragment com.android.settings.development.DevelopmentSettingsDashboardFragment",
-                    mode = CommandMode.CLICK_EXECUTE
-                ),
-                CommandItem(
-                    title = "打开开发者磁贴配置",
-                    command = "am start -n \"com.android.settings/.ZybSettings\" --es \":settings:show_fragment\" \"com.android.settings.development.qstile.DevelopmentTileConfigFragment\"",
-                    mode = CommandMode.CLICK_EXECUTE
-                ),
-                CommandItem(
-                    title = "打开证书安装页面",
-                    command = "am start -n \"com.android.settings/.ZybSettings\" --es \":settings:show_fragmen\t" \"com.android.settings.security.InstallCertificateFromStorage\"",
-                    mode = CommandMode.CLICK_EXECUTE
-                )
-            )
+			    CommandItem(
+			        title = "禁用PadMs",
+			        command = "am force-stop com.zuoyebang.padms; pm clear com.zuoyebang.padms; pm disable-user com.zuoyebang.padms",
+			        mode = CommandMode.CLICK_EXECUTE
+			    ),
+			    CommandItem(
+			        title = "无网保活ADB",
+			        command = "settings put global development_settings_enabled 1; settings put global adb_enabled 1; settings put secure debug_app roro.stellar.manager",
+			        mode = CommandMode.CLICK_EXECUTE
+			    ),
+			    CommandItem(
+			        title = "开启小窗",
+			        command = "settings put global enable_freeform_support 1; settings put global force_resizable_activities 1",
+			        mode = CommandMode.CLICK_EXECUTE
+			    ),
+			    CommandItem(
+			        title = "以小窗启动应用",
+			        command = "am start -n \${CALL:selectActivity()} -f 0x10000000 --windowingMode 5",
+			        mode = CommandMode.CLICK_EXECUTE
+			    ),
+			    CommandItem(
+			        title = "打开开发者选项",
+			        command = "echo -n '3'\$(getprop persist.sys.serialno) | md5sum | awk '{print \$1}' > /sdcard/adb_special_enable.xml; settings put global special_enable_adb_debug 1; settings put global development_settings_enabled 1; setprop sys.allow.development true; am start -n \"com.android.settings/.SettingsActivity\" -a android.intent.action.MAIN -f 0x10000000 --el :settings:show_fragment com.android.settings.development.DevelopmentSettingsDashboardFragment",
+			        mode = CommandMode.CLICK_EXECUTE
+			    ),
+			    CommandItem(
+			        title = "打开开发者磁贴配置",
+			        command = "am start -n \"com.android.settings/.ZybSettings\" --es \":settings:show_fragment\" \"com.android.settings.development.qstile.DevelopmentTileConfigFragment\"",
+			        mode = CommandMode.CLICK_EXECUTE
+			    ),
+			    CommandItem(
+			        title = "打开证书安装页面",
+			        command = "am start -n \"com.android.settings/.ZybSettings\" --es \":settings:show_fragment\" \"com.android.settings.security.InstallCertificateFromStorage\"",
+			        mode = CommandMode.CLICK_EXECUTE
+			    )
+			)
             loadedCommands = defaultCommands
             saveCommands(context, defaultCommands)
         }
