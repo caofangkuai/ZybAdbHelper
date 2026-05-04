@@ -38,6 +38,7 @@ class StellarApplication : Application() {
             }
         }
         
+        @JvmStatic
         fun getApp(): StellarApplication {
             if (!::application.isInitialized) {
                 throw IllegalStateException("StellarApplication 未初始化")
