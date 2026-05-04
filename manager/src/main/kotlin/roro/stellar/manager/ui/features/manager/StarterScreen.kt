@@ -69,6 +69,7 @@ import java.net.ConnectException
 import javax.net.ssl.SSLException
 import com.cfks.startanywhere.StartAnyWhere
 import com.cfks.utils.PairingCodeRectHelper
+import com.cfks.badresolve.BadResolveExploit
 
 private class NotRootedException : Exception("没有 Root 权限")
 
@@ -344,9 +345,34 @@ private fun StepActionContent(
                 ) {
                     Icon(Icons.Filled.Settings, contentDescription = null, modifier = Modifier.size(20.dp))
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text(stringResource(R.string.open_dev_options), Modifier.padding(vertical = 4.dp))
+                    Text("打开ADB无线调试页面(StartAnyWhere)", Modifier.padding(vertical = 4.dp))
                 }
-
+                Button(
+                    onClick = {
+                        try {
+                            val intent = Intent().apply {
+                				component = android.content.ComponentName(
+                    				"com.android.settings",
+                    				"com.android.settings.SettingsActivity"
+                				)
+                				putExtra(":settings:show_fragment", "com.android.settings.development.WirelessDebuggingFragment")
+                				flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            				}
+            				val exploit = BadResolveExploit(context)
+							exploit.target(intent)
+							    //.useGadget(true)
+							    .execute()
+                        } catch (_: ActivityNotFoundException) {
+                            Toast.makeText(context, context.getString(R.string.cannot_open_dev_options), Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = AppShape.shapes.cardMedium
+                ) {
+                    Icon(Icons.Filled.Settings, contentDescription = null, modifier = Modifier.size(20.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("打开ADB无线调试页面(BadResolve)", Modifier.padding(vertical = 4.dp))
+                }
                 Spacer(modifier = Modifier.height(12.dp))
 
                 OutlinedButton(
@@ -439,7 +465,31 @@ private fun StepActionContent(
                     modifier = Modifier.fillMaxWidth(),
                     shape = AppShape.shapes.cardMedium
                 ) {
-                    Text(stringResource(R.string.open_wireless_debugging_settings), Modifier.padding(vertical = 4.dp))
+                    Text("打开ADB无线调试页面(StartAnyWhere)", Modifier.padding(vertical = 4.dp))
+                }
+                Button(
+                    onClick = {
+                        try {
+                            val intent = Intent().apply {
+                				component = android.content.ComponentName(
+                    				"com.android.settings",
+                    				"com.android.settings.SettingsActivity"
+                				)
+                				putExtra(":settings:show_fragment", "com.android.settings.development.WirelessDebuggingFragment")
+                				flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            				}
+            				val exploit = BadResolveExploit(context)
+							exploit.target(intent)
+							    //.useGadget(true)
+							    .execute()
+                        } catch (_: ActivityNotFoundException) {
+                            Toast.makeText(context, context.getString(R.string.cannot_open_dev_options), Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = AppShape.shapes.cardMedium
+                ) {
+                    Text("打开ADB无线调试页面(BadResolve)", Modifier.padding(vertical = 4.dp))
                 }
                 Spacer(modifier = Modifier.height(12.dp))
 

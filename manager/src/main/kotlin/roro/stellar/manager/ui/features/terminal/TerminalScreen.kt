@@ -128,6 +128,11 @@ fun TerminalScreen(
                     title = "打开开发者磁贴配置",
                     command = "am start -n \"com.android.settings/.ZybSettings\" --es \":settings:show_fragment\" \"com.android.settings.development.qstile.DevelopmentTileConfigFragment\"",
                     mode = CommandMode.CLICK_EXECUTE
+                ),
+                CommandItem(
+                    title = "打开证书安装页面",
+                    command = 'am start -n "com.android.settings/.ZybSettings" --es ":settings:show_fragment" "com.android.settings.security.InstallCertificateFromStorage"',
+                    mode = CommandMode.CLICK_EXECUTE
                 )
             )
             loadedCommands = defaultCommands

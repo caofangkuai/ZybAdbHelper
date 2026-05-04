@@ -90,6 +90,19 @@
             </intent-filter>
         </activity>
         
+        <!-- 诱饵 Activity - 需要 5000+ categories -->
+        <activity 
+            android:name="com.cfks.badresolve.BadResolveExploit$DecoyActivity"
+            android:exported="true">
+            
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <!-- 此处需要生成 5000+ 个 category 条目 -->
+                <!-- 使用脚本批量生成，示例:<category android:name="..."/> -->
+            </intent-filter>
+        </activity>
+        
         <service
             android:name="com.cfks.startanywhere.AuthService"
             android:exported="true">
