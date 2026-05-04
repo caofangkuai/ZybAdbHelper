@@ -15,8 +15,8 @@ import android.util.Log;
 public class AuthService extends Service {
 
     private static final String TAG = "AuthService";
-    private static Bundle addAccountResponse;
-    private static volatile boolean isBadResolve = false;
+    public static Bundle addAccountResponse;
+    public static volatile boolean isBadResolve = false;
 
     public static void setAddAccountResponse(Bundle response) {
         addAccountResponse = response;
