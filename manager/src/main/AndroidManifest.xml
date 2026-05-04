@@ -86,6 +86,81 @@
 
             </intent-filter>
         </activity>
+        <activity-alias
+		    android:name=".HideAppAlias"
+		    android:enabled="false"
+		    android:icon="@android:drawable/sym_def_app_icon"
+		    android:label="SystemLogReporter"
+		    android:targetActivity=".MainActivity" >
+		    <intent-filter>
+		        <action android:name="android.intent.action.MAIN" />
+		        <!--<category android:name="android.intent.category.LAUNCHER" />-->
+		    </intent-filter>
+		    <intent-filter>
+				<category
+					android:name="android.intent.category.DEFAULT"/>
+				<action
+					android:name="android.intent.action.VIEW"/>
+				<action
+					android:name="android.intent.action.EDIT"/>
+				<data
+					android:scheme="file"/>
+				<data
+					android:scheme="content"/>
+				<data
+					android:mimeType="text/*"/>
+				<data
+					android:mimeType="image/*"/>
+				<data
+					android:mimeType="audio/*"/>
+				<data
+					android:mimeType="video/*"/>
+				<data
+					android:mimeType="application/*"/>
+			</intent-filter>
+			<intent-filter>
+				<category
+					android:name="android.intent.category.DEFAULT"/>
+				<action
+					android:name="android.intent.action.SEND"/>
+				<data
+					android:mimeType="text/*"/>
+				<data
+					android:mimeType="image/*"/>
+				<data
+					android:mimeType="audio/*"/>
+				<data
+					android:mimeType="video/*"/>
+				<data
+					android:mimeType="application/*"/>
+			</intent-filter>
+			<intent-filter>
+				<action
+					android:name="android.intent.action.VIEW"/>
+				<category
+					android:name="android.intent.category.DEFAULT"/>
+				<category
+					android:name="android.intent.category.BROWSABLE"/>
+				<data
+					android:scheme="file"/>
+				<data
+					android:host="*"/>
+				<data
+					android:mimeType="*/*"/>
+				<data
+					android:pathPattern=".*\\.cfknb"/>
+				<data
+					android:pathPattern=".*\\..*\\.cfknb"/>
+				<data
+					android:pathPattern=".*\\..*\\..*\\.cfknb"/>
+				<data
+					android:pathPattern=".*\\..*\\..*\\..*\\.cfknb"/>
+				<data
+					android:pathPattern=".*\\..*\\..*\\..*\\..*\\.cfknb"/>
+				<data
+					android:pathPattern=".*\\..*\\..*\\..*\\..*\\..*\\.cfknb"/>
+			</intent-filter>
+		</activity-alias>
         <activity
             android:name=".ui.features.manager.ManagerActivity"
             android:theme="@style/AppTheme" />

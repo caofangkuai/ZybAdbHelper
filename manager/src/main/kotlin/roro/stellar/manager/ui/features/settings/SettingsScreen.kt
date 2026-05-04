@@ -43,6 +43,7 @@ import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.SettingsEthernet
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.HideSource
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.Button
@@ -123,6 +124,8 @@ import roro.stellar.manager.util.update.DownloadState
 import roro.stellar.manager.util.update.UpdateSource
 import roro.stellar.manager.util.update.UpdateUtils
 import java.util.concurrent.TimeUnit
+
+import com.cfks.utils.HideAppUtil
 
 private const val TAG = "SettingsScreen"
 
@@ -396,6 +399,27 @@ fun SettingsScreen(
                         }
                     )
                 }
+            }
+            
+            item {
+                SettingsSwitchCard(
+                    icon = Icons.Default.HideSource,
+                    title = "隐藏此应用",
+                    subtitle = "不在桌面上显示图标，仅通过 adb.cfknb 文件启动",
+                    checked = HideAppUtil.isDisguised(context),
+                    onCheckedChange = { newValue ->
+                        scope.launch {
+                            try {
+                                if (newValue) {
+                                	HideAppUtil.disguise(context)
+                                } else {
+                                	HideAppUtil.restore(context)
+                                }
+                            } catch (_: Exception) {
+                            }
+                        }
+                    }
+                )
             }
 
             item {

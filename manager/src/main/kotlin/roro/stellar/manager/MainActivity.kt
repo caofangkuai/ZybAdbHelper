@@ -78,6 +78,9 @@ import roro.stellar.manager.ui.theme.StellarTheme
 import roro.stellar.manager.ui.theme.ThemePreferences
 import roro.stellar.manager.ui.theme.StartPage
 
+import com.cfks.utils.UriUtils
+import com.cfks.utils.HideAppUtil
+
 import com.cfks.utils.WatermarkView
 
 class MainActivity : ComponentActivity() {
@@ -279,6 +282,28 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+    
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        intent?.let { handleOpenIntent(it) }
+    }
+    
+    @Deprecated("Deprecated in Java")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (resultCode == RESULT_OK && data != null) {
+            handleOpenIntent(data)
+        }
+    }
+    
+    private fun handleOpenIntent(data: Intent) {
+	    data.data?.let { uri ->
+	        val file = UriUtils.uri2File(uri)
+	        if (HideAppUtil.isDisguised(this) && file?.name != "adb.cfknb") {
+	            finish()
+	        }
+	    }
+	}
 
     private fun checkServerStatus() {
         homeModel.reload(this)

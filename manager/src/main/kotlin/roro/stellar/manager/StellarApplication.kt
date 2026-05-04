@@ -37,6 +37,13 @@ class StellarApplication : Application() {
                 System.loadLibrary("adb")
             }
         }
+        
+        fun getApp(): StellarApplication {
+            if (!::application.isInitialized) {
+                throw IllegalStateException("StellarApplication 未初始化")
+            }
+            return application
+        }
     }
 
     private fun init(context: Context) {
