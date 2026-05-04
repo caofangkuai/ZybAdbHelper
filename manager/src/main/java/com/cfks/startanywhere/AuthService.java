@@ -19,7 +19,7 @@ import android.os.IBinder;
 public class AuthService extends Service {
 
     public static Bundle addAccountResponse;
-    public static isBadResolve = false;
+    public static boolean isBadResolve = false;
 
     @Override
     public IBinder onBind(Intent intent) {
