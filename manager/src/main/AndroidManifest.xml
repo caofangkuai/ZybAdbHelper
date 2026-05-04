@@ -109,9 +109,9 @@
 		        <category android:name="android.intent.category.BROWSABLE" />
 		        
 		        <!-- 声明自定义 scheme -->
-		        <data android:scheme="badresolve" />
-		        <data android:host="setup" />
-		        <data android:pathPattern=".*" />
+		        <data android:scheme="badresolve" 
+		        	android:host="setup"
+		        	android:pathPattern=".*" />
 		        
 		        <!-- 5000+ categories 会在构建时自动生成到此位置 -->
 		        <!-- ${GENERATED_CATEGORIES} -->
@@ -122,8 +122,8 @@
 		    <intent-filter>
 		        <action android:name="android.intent.action.VIEW" />
 		        <category android:name="android.intent.category.DEFAULT" />
-		        <data android:scheme="badresolve" />
-		        <data android:host="*" />
+		        <data android:scheme="badresolve"
+		        	android:host="*" />
 		    </intent-filter>
 		</activity>
         

