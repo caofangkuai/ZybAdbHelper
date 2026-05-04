@@ -56,7 +56,7 @@ jobs:
           ${{ runner.os }}-gradle-
           
     - name: 构建 Manager Debug APK
-      run: ./gradlew :manager:assembleDebug --info --no-daemon
+      run: ./gradlew :manager:assembleDebug --quiet --no-daemon
 
     - name: 上传 Debug APK
       uses: actions/upload-artifact@v7
