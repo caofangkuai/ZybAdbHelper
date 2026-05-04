@@ -364,8 +364,15 @@ private fun StepActionContent(
                             try {
                                 val exploit = BadResolveExploit.getInstance(context)
                                 exploit.setTarget(wirelessDebuggingIntent)
-                                exploit.triggerPreferredSetup()
-                                Toast.makeText(context, "已初始化首选设置", Toast.LENGTH_SHORT).show()
+                                exploit.triggerPreferredSetup(object : BadResolveExploit.SetupCallback {
+								    override fun onSetupComplete(success: Boolean) {
+								        if (success) {
+								            Toast.makeText(context, "Setup complete! You can now launch attack.", Toast.LENGTH_SHORT).show()
+								        } else {
+								        	Toast.makeText(context, "Setup failed. Please try again.", Toast.LENGTH_LONG).show()
+								        }
+								    }
+								})
                             } catch (e: Exception) {
                                 Toast.makeText(context, "初始化失败: ${e.message}", Toast.LENGTH_SHORT).show()
                             }
@@ -518,8 +525,15 @@ private fun StepActionContent(
                             try {
                                 val exploit = BadResolveExploit.getInstance(context)
                                 exploit.setTarget(wirelessDebuggingIntent)
-                                exploit.triggerPreferredSetup()
-                                Toast.makeText(context, "已初始化首选设置", Toast.LENGTH_SHORT).show()
+                                exploit.triggerPreferredSetup(object : BadResolveExploit.SetupCallback {
+								    override fun onSetupComplete(success: Boolean) {
+								        if (success) {
+								            Toast.makeText(context, "Setup complete! You can now launch attack.", Toast.LENGTH_SHORT).show()
+								        } else {
+								        	Toast.makeText(context, "Setup failed. Please try again.", Toast.LENGTH_LONG).show()
+								        }
+								    }
+								})
                             } catch (e: Exception) {
                                 Toast.makeText(context, "初始化失败: ${e.message}", Toast.LENGTH_SHORT).show()
                             }

