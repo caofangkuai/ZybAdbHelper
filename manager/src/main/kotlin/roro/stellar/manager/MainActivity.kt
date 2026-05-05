@@ -487,7 +487,7 @@ private fun MainScreenContent(
             
             navigation(
                 startDestination = "intent",
-                route = MainScreen.Intent.route
+                route = MainScreen.OpenInNew.route
             ) {
                 composable("intent") {
                     IntentScreen(
