@@ -18,8 +18,6 @@ import roro.stellar.manager.db.AppDatabase
 import roro.stellar.manager.startup.notification.BootStartNotifications
 import roro.stellar.manager.util.Logger.Companion.LOGGER
 import com.cfks.utils.TesseractHelper
-import com.yc.toollib.tool.*
-import com.yc.toollib.crash.*
 
 lateinit var application: StellarApplication
 
@@ -57,16 +55,6 @@ class StellarApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         application = this
-        
-        CrashHandler.getInstance().init(this, object : CrashListener() {
-		    override fun againStartApp() {
-		        CrashToolUtils.startCrashListActivity(this@StellarApplication)
-		    }
-		
-		    override fun recordException(ex: Throwable?) {
-		        // 空实现
-		    }
-		})
 
         init(this)
         BootStartNotifications.createChannel(this)

@@ -66,7 +66,7 @@ import roro.stellar.manager.ui.features.home.HomeViewModel
 import roro.stellar.manager.ui.features.manager.ManagerActivity
 import roro.stellar.manager.ui.features.settings.SettingsScreen
 import roro.stellar.manager.ui.features.terminal.TerminalScreen
-import roro.stellar.manager.ui.features.terminal.IntentScreen
+import roro.stellar.manager.ui.features.intent.IntentScreen
 import roro.stellar.manager.ui.navigation.components.LocalNavigationState
 import roro.stellar.manager.ui.navigation.components.LocalTopAppBarState
 import roro.stellar.manager.ui.navigation.components.NavigationState
