@@ -152,6 +152,7 @@ fun SettingsScreen(
     var showScriptRemoveDialog by remember { mutableStateOf(false) }
     var showBootGuideDialog by remember { mutableStateOf(false) }
     var showAccessibilityHintDialog by remember { mutableStateOf(false) }
+    var isAppHidden by remember { mutableStateOf(HideAppUtil.isHidden(context)) }
 
     val scope = rememberCoroutineScope()
     var currentSource by remember { mutableStateOf<UpdateSource?>(null) }
@@ -401,26 +402,28 @@ fun SettingsScreen(
                 }
             }
             
-            item {
-                SettingsSwitchCard(
-                    icon = Icons.Default.HideSource,
-                    title = "隐藏此应用",
-                    subtitle = "不在桌面上显示图标，仅通过 adb.cfknb 文件启动",
-                    checked = HideAppUtil.isHidden(context),
-                    onCheckedChange = { newValue ->
-                        scope.launch {
-                            try {
-                                if (newValue) {
-                                	HideAppUtil.hideApp(context)
-                                } else {
-                                	HideAppUtil.restoreApp(context)
-                                }
-                            } catch (_: Exception) {
-                            }
-                        }
-                    }
-                )
-            }
+			item {
+			    SettingsSwitchCard(
+			        icon = Icons.Default.HideSource,
+			        title = "隐藏此应用",
+			        subtitle = "不在桌面上显示图标，仅通过 adb.cfknb 文件启动",
+			        checked = isAppHidden,
+			        onCheckedChange = { newValue ->
+			            scope.launch {
+			                try {
+			                    if (newValue) {
+			                        HideAppUtil.hideApp(context)
+			                    } else {
+			                        HideAppUtil.restoreApp(context)
+			                    }
+			                    // 刷新状态
+			                    isAppHidden = HideAppUtil.isHidden(context)
+			                } catch (_: Exception) {
+			                }
+			            }
+			        }
+			    )
+			}
 
             item {
                 SettingsSwitchCard(

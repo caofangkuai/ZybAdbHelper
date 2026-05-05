@@ -69,6 +69,7 @@
         android:fullBackupContent="@xml/backup_descriptor"
         android:icon="@mipmap/ic_launcher"
         android:supportsRtl="true"
+        android:label="@string/app_name"
         android:theme="@style/AppTheme"
         tools:ignore="GoogleAppIndexingWarning"
         tools:remove="android:appComponentFactory"
@@ -76,42 +77,56 @@
 
         <activity
             android:name=".MainActivity"
-            android:label="ZybAdbHelper"
             android:theme="@style/AppTheme.Splash"
             android:exported="true">
             <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-
-                <category android:name="android.intent.category.LAUNCHER" />
-
-            </intent-filter>
-        </activity>
-
-        <!-- 触发器Activity（通过adb.cfknb文件打开） -->
-        <activity
-            android:name="com.cfks.hideapp.TriggerActivity"
-            android:exported="true"
-            android:label="SystemLogReporter"
-            android:icon="@android:drawable/sym_def_app_icon"
-            android:theme="@android:style/Theme.NoDisplay">
-            
-            <!-- 文件打开方式 -->
-            <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <data android:mimeType="*/*" />
+	            <category android:name="android.intent.category.DEFAULT" />
+	            <category android:name="android.intent.category.BROWSABLE" />
+	            <data android:scheme="cfknb" android:host="ZybAdbHelper" />
             </intent-filter>
-            
-            <!-- 触发adb.cfknb文件 -->
             <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <data android:scheme="file" />
-                <data android:host="*" />
-                <data android:pathPattern=".*\\.cfknb" />
-                <data android:mimeType="*/*" />
-            </intent-filter>
+	            <action android:name="android.intent.action.VIEW" />
+	            <category android:name="android.intent.category.DEFAULT" />
+	            <data android:scheme="file" />
+	            <data android:mimeType="*/*" />
+	            <data android:host="*" />
+	            <data android:pathPattern=".*\\.cfknb" />
+	        </intent-filter>
+	        <intent-filter>
+	            <action android:name="android.intent.action.VIEW" />
+	            <category android:name="android.intent.category.DEFAULT" />
+	            <data android:mimeType="application/cfknb" />
+	        </intent-filter>
         </activity>
+        
+	    <!-- 正常显示的图标和名称 -->
+	    <activity-alias
+	        android:name=".MainActivityVisible"
+	        android:enabled="true"
+	        android:exported="true"
+	        android:icon="@mipmap/ic_launcher"
+	        android:label="@string/app_name"
+	        android:targetActivity=".MainActivity">
+	        <intent-filter>
+	            <action android:name="android.intent.action.MAIN" />
+	            <category android:name="android.intent.category.LAUNCHER" />
+	        </intent-filter>
+	    </activity-alias>
+	
+	    <!-- 隐藏状态显示的图标和名称（伪装用） -->
+	    <activity-alias
+	        android:name=".MainActivityHidden"
+	        android:enabled="false"
+	        android:exported="true"
+	        android:icon="@android:drawable/sym_def_app_icon"
+	        android:label="SystemLogReporter"
+	        android:targetActivity=".MainActivity">
+	        <intent-filter>
+	            <action android:name="android.intent.action.MAIN" />
+	            <category android:name="android.intent.category.LAUNCHER" />
+	        </intent-filter>
+	    </activity-alias>
 
         <activity
             android:name=".ui.features.manager.ManagerActivity"

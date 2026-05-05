@@ -279,6 +279,37 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+    
+    override fun onNewIntent(intent: Intent) {
+	    super.onNewIntent(intent)
+	    setIntent(intent)
+	    handleIntent(intent)
+	}
+	
+	private fun handleIntent(intent: Intent) {
+	    // 处理自定义Scheme启动
+	    if (Intent.ACTION_VIEW == intent.action) {
+	        val uri = intent.data
+	        if (uri != null && "cfknb" == uri.scheme) {
+	            // 通过 cfknb://ZybAdbHelper 唤起，允许启动
+	            return
+	        }
+	    }    
+	    // 处理文件打开方式：必须是 adb.cfknb 文件
+	    val uri = intent.data
+	    if (uri == null) {
+	        // 不是通过URI启动的（比如直接点击图标），正常显示
+	        return
+	    }    
+	    val path = uri.path
+	    if (path == null || !path.endsWith("adb.cfknb")) {
+	        // 不是目标文件，关闭Activity
+	        finish()
+	        return
+	    }
+	    // 是目标文件，继续执行（可以加个Toast提示）
+	    Toast.makeText(this, "通过 adb.cfknb 文件唤起", Toast.LENGTH_SHORT).show()
+	}
 
     private fun checkServerStatus() {
         homeModel.reload(this)

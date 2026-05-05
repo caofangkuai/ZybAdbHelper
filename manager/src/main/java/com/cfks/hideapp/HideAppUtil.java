@@ -4,155 +4,84 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.net.Uri;
 import android.os.Build;
-import android.util.Log;
 
+/**
+ * 应用隐藏/恢复工具类
+ * 支持修改图标和名称
+ */
 public class HideAppUtil {
-    private static final String TAG = "HideAppUtil";
-    private static final String PREF_NAME = "hide_app_config";
-    private static final String KEY_IS_HIDDEN = "is_app_hidden";
-    private static final String KEY_ORIGINAL_LABEL = "original_app_label";
+
+    private static final String PREF_NAME = "app_hide_prefs";
+    private static final String KEY_IS_HIDDEN = "is_hidden";
     
-    // 用于通过adb.cfknb文件打开的Activity
-    private static final String TRIGGER_ACTIVITY_ALIAS = "com.cfks.hideapp.TriggerActivity";
-    
+    private static final String ALIAS_VISIBLE = "MainActivityVisible";      // 正常显示别名
+    private static final String ALIAS_HIDDEN = "MainActivityHidden";        // 隐藏状态别名
+
     /**
-     * 隐藏桌面图标，修改应用名为"SystemLogReporter"
+     * 隐藏应用图标（修改为 SystemLogReporter + 安卓默认图标）
      */
-    public static boolean hideApp(Context context) {
-        try {
-            PackageManager pm = context.getPackageManager();
-            ComponentName mainComponent = new ComponentName(context, context.getPackageName() + ".MainActivity");
-            String packageName = context.getPackageName();
-            
-            // 获取当前应用标签并保存原始标签
-            try {
-                String currentLabel = pm.getApplicationLabel(
-                    pm.getApplicationInfo(packageName, 0)).toString();
-                saveOriginalLabel(context, currentLabel);
-            } catch (Exception e) {
-                Log.e(TAG, "获取原始标签失败", e);
-            }
-            
-            // 1. 禁用主Activity（隐藏桌面图标）
-            pm.setComponentEnabledSetting(mainComponent,
-                    PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
-                    PackageManager.DONT_KILL_APP);
-            
-            // 2. 使用Activity-Alias动态修改图标和名称
-            // 需要在AndroidManifest.xml中配置对应的activity-alias
-            
-            // 3. 启用触发器Activity（通过adb.cfknb文件打开）
-            enableTriggerActivity(context);
-            
-            // 4. 保存隐藏状态
-            saveHiddenState(context, true);
-            
-            Log.d(TAG, "应用已隐藏，名称已修改为SystemLogReporter");
-            return true;
-        } catch (Exception e) {
-            Log.e(TAG, "隐藏应用失败", e);
-            return false;
-        }
+    public static void hideApp(Context context) {
+        String pkgName = context.getPackageName();
+        
+        // 禁用正常图标，启用伪装图标
+        setComponentState(context, pkgName + "." + ALIAS_VISIBLE, false);
+        setComponentState(context, pkgName + "." + ALIAS_HIDDEN, true);
+        
+        getPrefs(context).edit().putBoolean(KEY_IS_HIDDEN, true).apply();
+        scheduleIconRefresh(context);
     }
-    
+
     /**
-     * 恢复桌面图标和原始应用名
+     * 恢复应用图标（恢复正常图标和名称）
      */
-    public static boolean restoreApp(Context context) {
-        try {
-            PackageManager pm = context.getPackageManager();
-            ComponentName mainComponent = new ComponentName(context, context.getPackageName() + ".MainActivity");
-            
-            // 1. 启用主Activity（恢复桌面图标）
-            pm.setComponentEnabledSetting(mainComponent,
-                    PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
-                    PackageManager.DONT_KILL_APP);
-            
-            // 2. 禁用触发器Activity
-            disableTriggerActivity(context);
-            
-            // 3. 清除隐藏状态
-            saveHiddenState(context, false);
-            
-            Log.d(TAG, "应用已恢复");
-            return true;
-        } catch (Exception e) {
-            Log.e(TAG, "恢复应用失败", e);
-            return false;
-        }
+    public static void restoreApp(Context context) {
+        String pkgName = context.getPackageName();
+        
+        // 启用正常图标，禁用伪装图标
+        setComponentState(context, pkgName + "." + ALIAS_VISIBLE, true);
+        setComponentState(context, pkgName + "." + ALIAS_HIDDEN, false);
+        
+        getPrefs(context).edit().putBoolean(KEY_IS_HIDDEN, false).apply();
+        scheduleIconRefresh(context);
     }
-    
+
     /**
-     * 判断应用是否处于隐藏状态
+     * 判断当前是否处于隐藏状态
      */
     public static boolean isHidden(Context context) {
-        SharedPreferences prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
-        return prefs.getBoolean(KEY_IS_HIDDEN, false);
+        return getPrefs(context).getBoolean(KEY_IS_HIDDEN, false);
     }
-    
+
     /**
-     * 启用触发器Activity
+     * 启用/禁用组件
      */
-    private static void enableTriggerActivity(Context context) {
+    private static void setComponentState(Context context, String componentNameStr, boolean enabled) {
+        PackageManager pm = context.getPackageManager();
+        ComponentName componentName = new ComponentName(context, componentNameStr);
+        int newState = enabled ? 
+                PackageManager.COMPONENT_ENABLED_STATE_ENABLED : 
+                PackageManager.COMPONENT_ENABLED_STATE_DISABLED;
+        
         try {
-            PackageManager pm = context.getPackageManager();
-            ComponentName triggerComponent = new ComponentName(context, TRIGGER_ACTIVITY_ALIAS);
-            pm.setComponentEnabledSetting(triggerComponent,
-                    PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
-                    PackageManager.DONT_KILL_APP);
-        } catch (Exception e) {
-            Log.e(TAG, "启用触发器失败", e);
+            pm.setComponentEnabledSetting(componentName, newState, PackageManager.DONT_KILL_APP);
+        } catch (SecurityException e) {
+            e.printStackTrace();
+            pm.setComponentEnabledSetting(componentName, newState, 0);
         }
     }
-    
-    /**
-     * 禁用触发器Activity
-     */
-    private static void disableTriggerActivity(Context context) {
-        try {
-            PackageManager pm = context.getPackageManager();
-            ComponentName triggerComponent = new ComponentName(context, TRIGGER_ACTIVITY_ALIAS);
-            pm.setComponentEnabledSetting(triggerComponent,
-                    PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
-                    PackageManager.DONT_KILL_APP);
-        } catch (Exception e) {
-            Log.e(TAG, "禁用触发器失败", e);
+
+    private static SharedPreferences getPrefs(Context context) {
+        return context.getApplicationContext().getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
+    }
+
+    private static void scheduleIconRefresh(Context context) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            context.getPackageManager().flushPackageCache();
         }
-    }
-    
-    /**
-     * 保存隐藏状态
-     */
-    private static void saveHiddenState(Context context, boolean isHidden) {
-        SharedPreferences prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
-        prefs.edit().putBoolean(KEY_IS_HIDDEN, isHidden).apply();
-    }
-    
-    /**
-     * 保存原始应用标签
-     */
-    private static void saveOriginalLabel(Context context, String label) {
-        SharedPreferences prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
-        prefs.edit().putString(KEY_ORIGINAL_LABEL, label).apply();
-    }
-    
-    /**
-     * 获取原始应用标签
-     */
-    public static String getOriginalLabel(Context context) {
-        SharedPreferences prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
-        return prefs.getString(KEY_ORIGINAL_LABEL, "");
-    }
-    
-    /**
-     * 初始化触发器Activity（应用启动时调用）
-     */
-    public static void initTriggerActivity(Context context) {
-        if (isHidden(context)) {
-            enableTriggerActivity(context);
-        } else {
-            disableTriggerActivity(context);
-        }
+        android.content.Intent intent = new android.content.Intent(android.content.Intent.ACTION_PACKAGE_CHANGED);
+        intent.setData(Uri.parse("package:" + context.getPackageName()));
+        context.sendBroadcast(intent);
     }
 }
