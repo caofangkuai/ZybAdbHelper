@@ -33,6 +33,7 @@ dependencyResolutionManagement {
                 // includeGroup("com.github.adaptech-cz")
             // }
         }
+        maven { url "https://mvn.cfknb.vip/browse/maven-public/" }
     }
 
     versionCatalogs {
