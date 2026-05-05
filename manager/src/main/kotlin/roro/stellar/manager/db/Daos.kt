@@ -43,3 +43,27 @@ interface ConfigDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     fun setAll(entities: List<ConfigEntity>)
 }
+
+@Dao
+interface IntentDao {
+    @Query("SELECT * FROM intents ORDER BY title ASC")
+    suspend fun getAll(): List<IntentEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(intents: List<IntentEntity>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(intent: IntentEntity)
+
+    @Update
+    suspend fun update(intent: IntentEntity)
+
+    @Query("DELETE FROM intents")
+    suspend fun deleteAll()
+
+    @Query("DELETE FROM intents WHERE id = :id")
+    suspend fun deleteById(id: String)
+
+    @Query("SELECT * FROM intents WHERE id = :id")
+    suspend fun getById(id: String): IntentEntity?
+}

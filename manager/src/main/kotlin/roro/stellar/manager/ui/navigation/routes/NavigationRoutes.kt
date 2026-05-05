@@ -5,10 +5,12 @@ import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Terminal
+import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.outlined.Apps
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Terminal
+import androidx.compose.material.icons.outlined.OpenInNew
 import androidx.compose.ui.graphics.vector.ImageVector
 import roro.stellar.manager.R
 
@@ -37,6 +39,13 @@ enum class MainScreen(
         labelRes = R.string.nav_terminal,
         icon = Icons.Outlined.Terminal,
         iconFilled = Icons.Filled.Terminal
+    ),
+    
+    OpenInNew(
+        route = "intent_graph",
+        labelRes = R.string.nav_intent,
+        icon = Icons.Outlined.OpenInNew,
+        iconFilled = Icons.Filled.OpenInNew
     ),
 
     Settings(

@@ -22,3 +22,12 @@ data class LogEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val line: String
 )
+
+@Entity(tableName = "intents")
+data class IntentEntity(
+    @PrimaryKey
+    val id: String,
+    val title: String,
+    val intentUri: String,
+    val launchMode: String
+)

@@ -158,12 +158,12 @@ task generateBadResolveCategories {
     def generatedDir = file('src/main/gen/com/cfks/badresolve')
     def outputFile = file("$generatedDir/CategoriesGenerator.java")
     
-    inputs.property('categoryCount', 6000)
+    inputs.property('categoryCount', 5000)
     outputs.file(outputFile)
     
     doLast {
         generatedDir.mkdirs()
-        def categoryCount = 6000  // 6000个categories，留有余量
+        def categoryCount = 5000  // 5000个categories，留有余量
         
         outputFile.text = """package com.cfks.badresolve;
 
@@ -210,7 +210,7 @@ task patchManifestWithCategories {
             }
         }
         
-        def categoryCount = 6000
+        def categoryCount = 5000
         def categoriesXml = (1..categoryCount).collect { i ->
             '            <category android:name="com.cfks.badresolve.CATEGORY_' + i + '" />'
         }.join('\n')

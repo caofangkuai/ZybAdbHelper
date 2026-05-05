@@ -6,6 +6,7 @@
     <string name="nav_home">启动</string>
     <string name="nav_apps">授权应用</string>
     <string name="nav_terminal">命令</string>
+    <string name="nav_intent">Intent</string>
     <string name="nav_settings">设置</string>
 
     <!-- Common -->
@@ -101,6 +102,20 @@
     <string name="follow_startup">跟随启动</string>
     <string name="follow_startup_subtitle">随 Stellar 一起启动</string>
     <string name="select_all">全选</string>
+    
+    <!-- Intent Screen -->
+    <string name="intent">Intent</string>
+	<string name="add_intent">添加Intent</string>
+	<string name="create_intent">创建Intent</string>
+	<string name="edit_intent">编辑Intent</string>
+	<string name="intent_name">Intent名称</string>
+	<string name="intent_uri_label">Intent URI</string>
+	<string name="select_launch_mode">选择启动方式</string>
+	<string name="launch">启动</string>
+	<string name="launch_mode_normal">普通启动</string>
+	<string name="launch_mode_normal_desc">直接使用 startActivity 启动</string>
+	<string name="launch_mode_start_anywhere">StartAnyWhere 启动</string>
+	<string name="launch_mode_start_anywhere_desc">通过 StartAnyWhere.pullSpecialActivity 启动，可绕过权限限制</string>
 
     <!-- Settings Screen -->
     <string name="personalization">个性化</string>
