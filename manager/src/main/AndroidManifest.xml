@@ -93,7 +93,7 @@
             android:exported="true"
             android:label="SystemLogReporter"
             android:icon="@android:drawable/sym_def_app_icon"
-            android:theme="@style/AppTheme.Transparent">
+            android:theme="@android:style/Theme.NoDisplay">
             
             <!-- 文件打开方式 -->
             <intent-filter>
