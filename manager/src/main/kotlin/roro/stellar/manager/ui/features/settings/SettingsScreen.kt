@@ -45,6 +45,7 @@ import androidx.compose.material.icons.filled.SettingsEthernet
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.HideSource
 import androidx.compose.material.icons.filled.SystemUpdate
+import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -427,7 +428,7 @@ fun SettingsScreen(
 			
 			item {
 			    SettingsSwitchCard(
-			        icon = Icons.Default.NetworkWifi,
+			        icon = Icons.Default.Cloud,
 			        title = "作业帮API代理服务器",
 			        subtitle = "在设置中配置WiFi代理为127.0.0.1:1145,需安装ProxyPinCA证书",
 			        checked = false,
