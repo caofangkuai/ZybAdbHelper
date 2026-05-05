@@ -21,19 +21,17 @@ dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
 
     repositories {
+    	maven { url 'https://maven.aliyun.com/repository/public/' }
+        maven { url 'https://maven.aliyun.com/repository/google/' }
+        maven { url 'https://maven.aliyun.com/repository/gradle-plugin/' }
+        maven { url 'https://dl.bintray.com/ppartisan/maven/' }
+        maven { url "https://clojars.org/repo/" }
+        maven { url "https://jitpack.io" }
+		maven { url "https://mvn.cfknb.vip/browse/maven-public/" }
+		maven { url "https://maven.scijava.org/content/repositories/public/" }
         google()
         mavenLocal()
         mavenCentral()
-        maven {
-            url("https://jitpack.io")
-            // content {
-                // includeGroup("com.github.topjohnwu.libsu")
-                // includeGroup("com.github.Kyant0")
-                // includeGroup("com.github.jeziellago")
-                // includeGroup("com.github.adaptech-cz")
-            // }
-        }
-        maven { url "https://mvn.cfknb.vip/browse/maven-public/" }
     }
 
     versionCatalogs {
