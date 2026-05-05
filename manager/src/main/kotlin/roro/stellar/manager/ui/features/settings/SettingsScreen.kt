@@ -125,7 +125,7 @@ import roro.stellar.manager.util.update.UpdateSource
 import roro.stellar.manager.util.update.UpdateUtils
 import java.util.concurrent.TimeUnit
 
-import com.cfks.utils.HideAppUtil
+import com.cfks.hideapp.HideAppUtil
 
 private const val TAG = "SettingsScreen"
 
@@ -406,14 +406,14 @@ fun SettingsScreen(
                     icon = Icons.Default.HideSource,
                     title = "隐藏此应用",
                     subtitle = "不在桌面上显示图标，仅通过 adb.cfknb 文件启动",
-                    checked = HideAppUtil.isDisguised(context),
+                    checked = HideAppUtil.isHidden(context),
                     onCheckedChange = { newValue ->
                         scope.launch {
                             try {
                                 if (newValue) {
-                                	HideAppUtil.disguise(context)
+                                	HideAppUtil.hideApp(context)
                                 } else {
-                                	HideAppUtil.restore(context)
+                                	HideAppUtil.restoreApp(context)
                                 }
                             } catch (_: Exception) {
                             }
