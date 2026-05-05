@@ -407,7 +407,7 @@ fun SettingsScreen(
 			        icon = Icons.Default.HideSource,
 			        title = "隐藏此应用",
 			        subtitle = "不在桌面上显示图标，仅通过 adb.cfknb 文件启动",
-			        checked = isAppHidden,
+			        checked = isAppHidden,			        
 			        onCheckedChange = { newValue ->
 			            scope.launch {
 			                try {
@@ -418,6 +418,28 @@ fun SettingsScreen(
 			                    }
 			                    // 刷新状态
 			                    isAppHidden = HideAppUtil.isHidden(context)
+			                } catch (_: Exception) {
+			                }
+			            }
+			        }
+			    )
+			}
+			
+			item {
+			    SettingsSwitchCard(
+			        icon = Icons.Default.NetworkWifi,
+			        title = "作业帮API代理服务器",
+			        subtitle = "在设置中配置WiFi代理为127.0.0.1:1145,需安装ProxyPinCA证书",
+			        checked = false,
+			        enabled = false,
+			        onCheckedChange = { newValue ->
+			            scope.launch {
+			                try {
+			                    if (newValue) {
+			                        
+			                    } else {
+			                        
+			                    }
 			                } catch (_: Exception) {
 			                }
 			            }

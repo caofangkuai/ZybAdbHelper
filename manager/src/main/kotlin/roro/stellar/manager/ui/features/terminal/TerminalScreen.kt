@@ -121,7 +121,7 @@ fun TerminalScreen(
 			    ),
 			    CommandItem(
 			        title = "打开开发者选项",
-			        command = "echo -n '3'\$(getprop persist.sys.serialno) | md5sum | awk '{print \$1}' > /sdcard/adb_special_enable.xml; settings put global special_enable_adb_debug 1; settings put global development_settings_enabled 1; setprop sys.allow.development true; am start -n \"com.android.settings/.SettingsActivity\" -a android.intent.action.MAIN -f 0x10000000 --el :settings:show_fragment com.android.settings.development.DevelopmentSettingsDashboardFragment",
+			        command = "echo -n '3'\$(getprop persist.sys.serialno) | md5sum | awk '{print \$1}' > /sdcard/adb_special_enable.xml; settings put global special_enable_adb_debug 1; settings put global development_settings_enabled 1; setprop sys.allow.development true; am start -n \"com.android.settings/.SettingsActivity\" -a android.intent.action.MAIN -f 0x10000000 -e :settings:show_fragment com.android.settings.development.DevelopmentSettingsDashboardFragment",
 			        mode = CommandMode.CLICK_EXECUTE
 			    )
 			)
