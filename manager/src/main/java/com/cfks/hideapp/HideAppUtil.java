@@ -78,7 +78,12 @@ public class HideAppUtil {
 
     private static void scheduleIconRefresh(Context context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            context.getPackageManager().flushPackageCache();
+            try {
+			    PackageManager pm = context.getPackageManager();
+			    pm.getClass().getMethod("flushPackageCache").invoke(pm);
+			} catch (Exception e) {
+			    e.printStackTrace();
+			}
         }
         android.content.Intent intent = new android.content.Intent(android.content.Intent.ACTION_PACKAGE_CHANGED);
         intent.setData(Uri.parse("package:" + context.getPackageName()));
